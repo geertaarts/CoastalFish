@@ -1,0 +1,21 @@
+--- 
+title: "Modelling spatial distribution of coastal Fish"
+author: "Geert Aarts, Loes Bolle, Ingrid Tulp & Jan Jaap Poos"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+output: bookdown::gitbook
+documentclass: book
+bibliography: [book.bib, packages.bib]
+biblio-style: apalike
+link-citations: yes
+github-repo: rstudio/bookdown-demo
+description: "This report will describe how to model the spatial distribution of coastal fish in the Dutch North Sea and Wadden Sea"
+---
+
+# Audience and Objectives {-}
+
+We have three primary goals in writing this book:
+
+1. Test
+
+2. Test 2 
