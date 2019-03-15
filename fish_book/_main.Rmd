@@ -1,0 +1,123 @@
+--- 
+title: "Modelling spatial distribution of coastal Fish"
+author: "Geert Aarts, Loes Bolle, Ingrid Tulp & Jan Jaap Poos"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+output: bookdown::gitbook
+documentclass: book
+bibliography: [book.bib, packages.bib]
+biblio-style: apalike
+link-citations: yes
+github-repo: rstudio/bookdown-demo
+description: "This report will describe how to model the spatial distribution of coastal fish in the Dutch North Sea and Wadden Sea"
+---
+
+# Audience and Objectives {-}
+
+We have three primary goals in writing this book:
+
+1. Test
+
+2. Test 2 
+
+<!--chapter:end:index.Rmd-->
+
+# (PART) Ecological Concepts {-} 
+
+#  Ecological drivers of animal movement, population dynamics, and species distributions 
+
+- demographic drivers specific to different life history stages
+- habitat availability, fragmentation, interspersion of habitats
+- intra- and inter-species interactions, predator-prey dynamics
+- density dependence
+
+
+## Notes
+
+- Geert will take a stab at this section
+- We will look to make connections to different sections of the book as we make progress on them and also revisit this section (including anything we missed initially)
+
+##	A typical list of ecological research questions (where are they, why are they there, where else could they be?) {#aims}
+
+
+- to inform conservation and management of threatened plant and animal species [@franklin2010mapping; @guisan2017habitat]. 
+
+- to make inference about risk of invasion by non-native species
+
+-  evolutionary and community ecologists use these models to test theories related to realized and theoretical niches and drivers of speciation [@peterson2011ecological].
+
+
+
+<!--chapter:end:01-intro.Rmd-->
+
+#Survey data preparation
+##Load survey data
+
+```{r domains, echo=TRUE}
+computer<-"Geert"
+if (computer=="Janjaap") path <- "d://WMR-INLA/data"
+if (computer=="Geert") path<-"E:/GitHub/CoastalFish/fish_book/data" 
+if (computer=="Bruce") path<-"~/WMR-INLA/data"
+    
+library(INLA); library(fields); 
+library(mgcv)
+library(lattice); library(latticeExtra); library(grid); library(gridExtra);
+library(rgdal); library(rgeos); 
+library(mapdata); library(maptools)
+
+dat<-read.csv(file.path(path,"fish/dfs/dfs4pmr_aco_ple.csv"))
+names(dat)<-tolower(names(dat))
+dat$date<-paste(dat$day,"/",dat$month,"/",dat$year)
+dat$offset<-log(1/(dat$age1/dat$snumtot))
+names(dat)[names(dat) == 'latitude_s'] <- 'lat'
+names(dat)[names(dat) == 'longitude_s'] <- 'lon'
+names(dat)[names(dat) == 'snumtot'] <- 'count'
+dat$date<-as.POSIXct(strptime(dat$date,format="%d/%m/%Y"))
+
+dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
+dat$lat[dat$lat<0]<-(-1)*dat$lat[dat$lat<0]
+dat$lon[dat$lon<0]<-(-1)*dat$lon[dat$lon<0]
+
+head(dat)
+
+dat.s<-dat[dat$year==2017,]
+
+```
+
+```{r domains, echo=TRUE}
+library(rgdal)
+land<-rgdal::readOGR(dsn=file.path(path,"land/WGS84/"),layer="WGS84geoKust500")
+```   
+    
+After the aggregation (now that the length information is removed) we have rows in the data set.
+
+To give an impression of the spatial properties of the data we plot it in a map. The surveys have different colors; black being the BTS hauls, red being the IBTS hauls in quarter 1, and blue being the IBTS hauls in quarter 3. The size of the circles indicate the counts in each haul.
+
+```{r, eval=T, echo=TRUE, dpi=600, fig.width=8, fig.height=8}
+plot(dat.s$lon,dat.s$lat, 
+     cex=(0.2+log(dat.s$age0+1)/3), 
+     col=c('black'),
+     xlab="Longitude", ylab="Lattitude", main="Counts per hauls Age 0")
+plot(land,add=TRUE,border="grey75",col="grey90")
+```
+
+```{r, eval=T, echo=TRUE, dpi=600, fig.width=8, fig.height=8}
+plot(dat.s$lon,dat.s$lat, 
+     cex=(0.2 +log(dat.s$age1+1)/1), 
+     col=c('red'),
+     xlab="Longitude", ylab="Lattitude", main="Counts per hauls Age 1")
+plot(land,add=TRUE,border="grey75",col="grey90")
+```
+
+Clearly the IBTS hauls cover a larger part of the North Sea, but the large catches are located in the same areas. 
+
+### The count data
+
+We plot a quick histogram of the counts to give us an impression of the statistical distribution of the data.
+
+
+
+
+
+<!--chapter:end:02-Loading_data.Rmd-->
+

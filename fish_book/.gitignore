@@ -7,13 +7,7 @@ _book
 !/_book/HSF-book.tex
 _bookdown_files
 rsconnect
-HSF_Book.Proj
-HSF_Book.Rproj
-~$bitat selection Chapter outline 0.01.docx
 packages.bib
-data/AllStepsFisher2018-EnvDATA-results.csv
-HSF-Book.Rproj
+data
 _Mendeley_tag_protocol.html
-data/FisherRSF2018-EnvDATA-results.csv
-OldFilesForDiff
 showgit.sh
