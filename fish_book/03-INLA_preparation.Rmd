@@ -1,0 +1,114 @@
+#INLA DATA PREPARATION
+
+## Making a spatial mesh for the data
+
+When making a mesh the study area is divided into a large number of non-overlapping triangles (Zuur et al. 2017). This mesh is used to estimated the spatial correlation in the data.
+
+First, UTM coordinates of the data set are combined into a data frame. That data frame will be used later to generate spatial meshes for the data. 
+```{r, eval=T, echo=TRUE}
+dat.s$x_utm_km<-dat.s$x_utm/1000
+dat.s$y_utm_km<-dat.s$y_utm/1000
+Loc <- cbind(dat.s$x_utm_km, dat.s$y_utm_km) #km
+```
+
+Before creating the mesh we need a boundary for it: we do not want our spatial correlations to pass landmasses (e.g. Denmark). The boundary is made using a nonconvex hull of the data points, with function inla.nonconvex.hull(). This convex hull is used as a boundary for making a 2d mesh. 
+
+```{r, eval=T, echo=TRUE}
+ConvHull <- inla.nonconvex.hull(points=Loc, convex=-0.1, resolution=20) # convex was -0.02, resolution was 90
+```
+
+As an alternative to using the nonconvex hull function to generate a boundary, we can also take the shapefile of the North Seaas the boundary of the mesh, which makes prediction in the future easier, as we know no record can be found outside the North Sea area (give or take evolution). We first load the ICES shapefiles which were downloaded from http://gis.ices.dk/sf/. We load this shapefiles, merge layers together, transform to UTM, convert UTM to km rather than meters and finally create a mesh. 
+
+
+```{r, eval=T, echo=TRUE}
+coast <- readShapePoly("E:/Dropbox/Collaborative projects/GA_WZseal_fish_fishery/data/ICES_gebieden_V7_WGS84/ICES_gebieden_V7_WGS84")
+coast  <- subset(coast,is.element(Area_code,c(401,402,403,404)))
+coast  <- gUnionCascaded(coast)
+proj4string(coast) <- c("+proj=longlat")
+coastUTM <- spTransform(coast,CRS("+init=epsg:32631"))
+NS.border <- inla.sp2segment(coastUTM)
+NS.border$loc <- NS.border$loc/1000
+```
+
+Now that we have the tow possible boundaries to use for the mesh, we can generate a mesh with each the boundaries. The generation of the mesh is done using inla.mesh.2d(). That function takes several arguments, including "cutoff" and "max.edge". These arguments specify how fine the final mesh will be. The max.edge argument specifies the largest allowable edge length for the for the triangles in the mesh. The corners of the triangles are called vertices. Finer meshes will be able to capture smaller scale spatial correlations, but require more computing time in the inla model.
+
+
+```{r, eval=T, echo=TRUE}
+k=0.05
+mesh1a <- inla.mesh.2d(boundary=ConvHull, max.edge=c(1/k, 2/k))
+mesh1b <- inla.mesh.2d(boundary=NS.border, max.edge=c(1/k, 2/k), cutoff=3)
+mesh1c <- inla.mesh.2d(Loc,max.edge=c(1/k, 2/k), cutoff=0.1/k)
+```
+
+The number of vertices is stored in mesh1a$n and mesh1b$n. In our example, the number of verices for mesh1a is `r mesh1a$n`. A mesh with ~ 1000 vertices seems like a good trade-off between computation time and precision of our estimates.
+
+The meshes can be plotted using the plot() function on the mesh object. Once the mesh is plotted, the locations of the samples (stored in the Loc object) can be overlayed using points(). Below, the two meshes are plotted side-by-side, together with a map in UTM coordinates.
+
+```{r meshmap, eval=T, echo=TRUE, dpi=600}
+wld <- map('world', xlim=c(-5,15), ylim=c(47,62),plot=FALSE)
+UTMmap <- project(cbind(wld$x, wld$y), "+proj=utm +zone=31U ellps=WGS84")
+UTMmapFinal <- data.frame("xm"=UTMmap[,1]/1e3, "ym"=UTMmap[,2]/1e3)
+
+windows(10,7)
+par(mfrow=c(1,3),mai=c(0.1,0.1,0.6,0.1))
+plot(mesh1a,main="Convex Hull")
+lines(UTMmapFinal, lwd=2)
+points(Loc, col = 2, pch = 16, cex = 0.3)
+plot(mesh1b,main="predefined Convex Hull")
+lines(UTMmapFinal, lwd=2)
+points(Loc, col = 2, pch = 16, cex = 0.3)
+plot(mesh1c,main="No Convex Hull")
+lines(UTMmapFinal, lwd=2)
+points(Loc, col = 2, pch = 16, cex = 0.3)
+```
+
+## Making the projector matrix and the spde 
+
+Once the 2d mesh is made we construct a observation/prediction weight matrix for the model. This is also called the "projector matrix".
+```{r, eval=T, echo=TRUE}
+# 2. Define the weighting factors a_ik (also called the projector matrix).
+A1 <- inla.spde.make.A(mesh = mesh1c, loc=Loc)
+dim(A1)
+```
+The first dimension of the projector matrix has the size of the number of observations (here `r dim(A1)[1]`), and the second dimension of the projector matrix is the number of nodes in the mesh (here `r dim(A1)[2]`).
+```{r, eval=T, echo=TRUE}
+# 3. Define the spde
+spde <- inla.spde2.matern(mesh1c)
+w.st <- inla.spde.make.index('w', n.spde = spde$n.spde)
+```
+
+## Making the stack
+
+The stack allows INLA to build models with complex linear predictors. Here have a SPDE model combined with covariate fixed effects and an intercept at n hauls.
+
+Before making the stack we need to convert all fixed effects that are factors in the INLA model.
+
+Because of the link function of the Poisson and negative binomial that we will be using we need to log-transform the surfaces and haul durations to get a linear response later. 
+
+
+Note that in code below the names in the model matrix should not contain any special characters! This is why we renamed the "NS-IBTS" survey to "NSIBTS"
+```{r, eval=T, echo=T}
+# 5. Make a stack. In this process we tell INLA about the and the covariates and at which points on the mesh we sampled the response variable . 
+Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + depth + tpi1 + tpi9 + offset, data=dat.s)
+head(Xmatrix)
+```
+
+This Xmatrix contains the model matrix with the fixed effects, including the intercept (The column for the intercept is named "(Intercept)", and it is 1 for all observations). However, in the next step the intercept is removed from the model matrix. The intercept is then included when making the stack, and named "Intercept" (without brackets).
+
+```{r, eval=T, echo=T}
+X <- as.data.frame(Xmatrix[,-1])
+names(X) <- c(gsub("[:]",".",names(X)))
+head(X)
+N <- nrow(dat.s)
+Stack1 <- inla.stack(
+  tag  = "Fit",
+  data = list(y = dat.s$count),    
+  A    = list(1,1, A1),         
+  effects = list( 
+    Intercept=rep(1,N),
+    X=X, #Covariates
+    w=w.st))                  #Spatial field
+```
+
+
+

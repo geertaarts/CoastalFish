@@ -6,7 +6,8 @@ First we define where the data is stored, and subsequently define the libraries 
 
 ```{r, echo=TRUE}
 computer<-"Geert"
-if (computer=="Geert") path<-"E:/GitHub/CoastalFish/fish_book/data" 
+if (computer=="Geert") {path<-"c:/github/CoastalFish/fish_book/data";
+                        env.path<-"C:/Users/gaarts/Dropbox/Seal_database/environmental/"}
 if (computer=="Bruce") path<-"~/WMR-INLA/data"
     
 library(INLA); library(fields); 
@@ -102,13 +103,13 @@ Next we load and process the depth data. We only run it once, to save time. Only
 ```{r depthread, echo=TRUE, cache=TRUE, eval=TRUE}
 
 # 
-if (is.element("depth_raster.rdata",dir("data/depth/Emodnet_DTM2018/"))){
-  load("data/depth/Emodnet_DTM2018/depth_raster.rdata")}
+if (is.element("depth_raster.rdata",dir(file.path(path,"depth/Emodnet_DTM2018/")))){
+  load(file.path(path,"depth/Emodnet_DTM2018/depth_raster.rdata"))}
 
-if (is.element("depth_raster.rdata",dir("data/depth/Emodnet_DTM2018/"))==FALSE){
+if (is.element("depth_raster.rdata",dir(file.path(path,"depth/Emodnet_DTM2018/")))==FALSE){
 
 # What is the cellsize?
-  val<-raster(paste("E:/GitHub/CoastalFish/fish_book/data/depth/Emodnet_DTM2018/C4_2018.asc",sep=""))
+  val<-raster(file.path(env.path,"depth/europe/Emodnet_DTM2018/C4_2018.asc"))
   cellsize<-(val@extent@xmax-val@extent@xmin)/val@ncols
   print(cellsize)
   dist.x<-distm(c(5, 53), c(5+cellsize, 53))
@@ -130,7 +131,7 @@ if (is.element("depth_raster.rdata",dir("data/depth/Emodnet_DTM2018/"))==FALSE){
   tiles<-c("E4","E5","D4","D5","C4","C5")
   for (i in tiles){
     print(i)
-    val<-raster(paste("E:/GitHub/CoastalFish/fish_book/data/depth/Emodnet_DTM2018/",i,"_2018.asc",sep=""))
+    val<-raster(paste(env.path,"/depth/europe/Emodnet_DTM2018/",i,"_2018.asc",sep=""))
     xy[,i]<-extract(val, xy[,c('lon','lat')])
   }
   
@@ -147,7 +148,7 @@ if (is.element("depth_raster.rdata",dir("data/depth/Emodnet_DTM2018/"))==FALSE){
   M.raster<-raster(M,xmn=min(xy$x), xmx=max(xy$x), ymn=min(xy$y), ymx=max(xy$y))
 
     # Write.table
-  save(M.raster,file="E:/GitHub/CoastalFish/fish_book/data/depth/Emodnet_DTM2018/depth_raster.rdata")
+  save(M.raster,file=file.path(path,"depth/Emodnet_DTM2018/depth_raster.rdata"))
 
 }
 
@@ -179,25 +180,25 @@ Here we load and plot the Sediment data. These data are from 2007.
 
 # Create regular grid based on extremes of fish data
 par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2)) 
-  slibNL<-raster(file.path(path,"sediment/ascii/slib_juli2007.asc"))
+  slibNL<-raster(file.path(env.path,"sediment/NL/ascii/slib_juli2007.asc"))
     projection(slibNL)<-CRS("+init=epsg:32631")
     plot(slibNL,xaxt="n",yaxt="n",main="slib")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
-    zand<-raster(file.path(path,"sediment/ascii/zand_afgeleid.asc"))
+    zand<-raster(file.path(env.path,"sediment/NL/ascii/zand_afgeleid.asc"))
     projection(zand)<-CRS("+init=epsg:32631")
     plot(zand,xaxt="n",yaxt="n",main="zand")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
-    dz10<-raster(file.path(path,"sediment/ascii/dz10_juli2007.asc"))
+    dz10<-raster(file.path(env.path,"sediment/NL/ascii/dz10_juli2007.asc"))
     projection(dz10)<-CRS("+init=epsg:32631")
     plot(dz10,xaxt="n",yaxt="n",main="dz10")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
-    dz60<-raster(file.path(path,"sediment/ascii/dz60_juli2007.asc"))
+    dz60<-raster(file.path(env.path,"sediment/NL/ascii/dz60_juli2007.asc"))
     projection(dz60)<-CRS("+init=epsg:32631")
     plot(dz60,xaxt="n",yaxt="n",main="dz60")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
