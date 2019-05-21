@@ -95,7 +95,7 @@ This Xmatrix contains the model matrix with the fixed effects, including the int
 
 # Next to do: Deal with missing values. Make no-data for depth, very shallow, tpi as an average, or just remove all together, or use 
 # Look at offset of -Inf
-
+# Deal with no sediment data for Wadden SEa
 
 ```{r, eval=T, echo=T}
 X <- as.data.frame(Xmatrix[,-1])
