@@ -21,10 +21,10 @@ As an alternative to using the nonconvex hull function to generate a boundary, w
 
 
 ```{r, eval=T, echo=TRUE}
-coast <- readShapePoly("E:/Dropbox/Collaborative projects/GA_WZseal_fish_fishery/data/ICES_gebieden_V7_WGS84/ICES_gebieden_V7_WGS84")
+coast<-readOGR(file.path(env.path,"ICES_gebieden_V7_WGS84"),"ICES_gebieden_V7_WGS84")
 coast  <- subset(coast,is.element(Area_code,c(401,402,403,404)))
 coast  <- gUnionCascaded(coast)
-proj4string(coast) <- c("+proj=longlat")
+#proj4string(coast) <- c("+proj=longlat")
 coastUTM <- spTransform(coast,CRS("+init=epsg:32631"))
 NS.border <- inla.sp2segment(coastUTM)
 NS.border$loc <- NS.border$loc/1000
@@ -72,7 +72,6 @@ dim(A1)
 ```
 The first dimension of the projector matrix has the size of the number of observations (here `r dim(A1)[1]`), and the second dimension of the projector matrix is the number of nodes in the mesh (here `r dim(A1)[2]`).
 ```{r, eval=T, echo=TRUE}
-# 3. Define the spde
 spde <- inla.spde2.matern(mesh1c)
 w.st <- inla.spde.make.index('w', n.spde = spde$n.spde)
 ```
@@ -86,14 +85,17 @@ Before making the stack we need to convert all fixed effects that are factors in
 Because of the link function of the Poisson and negative binomial that we will be using we need to log-transform the surfaces and haul durations to get a linear response later. 
 
 
-Note that in code below the names in the model matrix should not contain any special characters! This is why we renamed the "NS-IBTS" survey to "NSIBTS"
+Note that in code below the names in the model matrix should not contain any special characters! 
 ```{r, eval=T, echo=T}
-# 5. Make a stack. In this process we tell INLA about the and the covariates and at which points on the mesh we sampled the response variable . 
-Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + depth + tpi1 + tpi9 + offset, data=dat.s)
+Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + depth + tpi_3 + tpi_15 + offset, data=dat.s)
 head(Xmatrix)
 ```
 
 This Xmatrix contains the model matrix with the fixed effects, including the intercept (The column for the intercept is named "(Intercept)", and it is 1 for all observations). However, in the next step the intercept is removed from the model matrix. The intercept is then included when making the stack, and named "Intercept" (without brackets).
+
+# Next to do: Deal with missing values. Make no-data for depth, very shallow, tpi as an average, or just remove all together, or use 
+# Look at offset of -Inf
+
 
 ```{r, eval=T, echo=T}
 X <- as.data.frame(Xmatrix[,-1])

@@ -5,11 +5,10 @@
 First we define where the data is stored, and subsequently define the libraries to load
 
 ```{r, echo=TRUE}
-computer<-"Geert"
-if (computer=="Geert") {path<-"c:/github/CoastalFish/fish_book/data";
-                        env.path<-"C:/Users/gaarts/Dropbox/Seal_database/environmental/"}
+if (Sys.info()["nodename"]=="L0151542") {path<-"c:/github/CoastalFish/fish_book/data";
+                        env.path<-"C:/Users/aarts012/Dropbox/Seal_database/environmental"}
 if (computer=="Bruce") path<-"~/WMR-INLA/data"
-    
+  
 library(INLA); library(fields); 
 library(mgcv)
 library(lattice); library(latticeExtra); library(grid); library(gridExtra);
@@ -58,7 +57,7 @@ We load some land data to be used for plotting.
 
 ```{r landread, echo=TRUE}
 library(rgdal)
-land<-rgdal::readOGR(dsn=file.path(path,"land/WGS84/"),layer="WGS84geoKust500")
+land<-rgdal::readOGR(dsn=file.path(env.path,"landsea/WGS84/"),layer="WGS84geoKust500")
 projection(land)<-CRS("+proj=longlat +datum=WGS84")
 land.utm<-land
 land.utm <- spTransform(land,CRS("+init=epsg:32631"))
@@ -103,10 +102,10 @@ Next we load and process the depth data. We only run it once, to save time. Only
 ```{r depthread, echo=TRUE, cache=TRUE, eval=TRUE}
 
 # 
-if (is.element("depth_raster.rdata",dir(file.path(path,"depth/Emodnet_DTM2018/")))){
-  load(file.path(path,"depth/Emodnet_DTM2018/depth_raster.rdata"))}
+if (is.element("depth_raster.rdata",dir(file.path(env.path,"depth/Europe/Emodnet_DTM2018/")))){
+  load(file.path(env.path,"depth/Europe/Emodnet_DTM2018/depth_raster.rdata"))}
 
-if (is.element("depth_raster.rdata",dir(file.path(path,"depth/Emodnet_DTM2018/")))==FALSE){
+if (is.element("depth_raster.rdata",dir(file.path(env.path,"depth/Europe/Emodnet_DTM2018/")))==FALSE){
 
 # What is the cellsize?
   val<-raster(file.path(env.path,"depth/europe/Emodnet_DTM2018/C4_2018.asc"))
@@ -148,7 +147,7 @@ if (is.element("depth_raster.rdata",dir(file.path(path,"depth/Emodnet_DTM2018/")
   M.raster<-raster(M,xmn=min(xy$x), xmx=max(xy$x), ymn=min(xy$y), ymx=max(xy$y))
 
     # Write.table
-  save(M.raster,file=file.path(path,"depth/Emodnet_DTM2018/depth_raster.rdata"))
+  save(M.raster,file=file.path(env.path,"depth/europe/Emodnet_DTM2018/depth_raster.rdata"))
 
 }
 
@@ -165,9 +164,11 @@ And plot the depth data
 Calculate topographic index and plot. Note that you will get no data values at the edges. One way to prevent this could be to calculate the TPI for different scales (e.g. 1, 3, etc.) and use a smaller scale value when missing for the larger scale (e.g. 15)
 
 ```{r tpi, echo=TRUE, eval=T, dpi=300, fig.width=6, fig.height=6}
+  tpi_depth3<-tpi(M.raster, scale = 3, win = "rectangle", normalize = FALSE)
+  tpi_depth9<-tpi(M.raster, scale = 9, win = "rectangle", normalize = FALSE)
+  tpi_depth15<-tpi(M.raster, scale = 15, win = "rectangle", normalize = FALSE)
   
-  tpi_depth<-tpi(M.raster, scale = 15, win = "rectangle", normalize = FALSE)
-  plot(tpi_depth)
+  plot(tpi_depth15)
   plot(land.utm,add=TRUE,border="grey75",col="grey90")
   box(lwd=2)  
 ```
@@ -209,6 +210,15 @@ par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2))
 
 ## Link survey data with environmental data
 
-
+```{r extract, echo=TRUE, eval=T}
+      dat.s$slib <-extract(slibNL, dat.s[,c('x_utm','y_utm')])
+      dat.s$zand <-extract(zand, dat.s[,c('x_utm','y_utm')])
+      dat.s$dz10 <-extract(dz10, dat.s[,c('x_utm','y_utm')])
+      dat.s$dz60 <-extract(dz60, dat.s[,c('x_utm','y_utm')])
+      dat.s$tpi_3 <-extract(tpi_depth3, dat.s[,c('x_utm','y_utm')])
+      dat.s$tpi_9 <-extract(tpi_depth9, dat.s[,c('x_utm','y_utm')])
+      dat.s$tpi_15 <-extract(tpi_depth15, dat.s[,c('x_utm','y_utm')])
+      dat.s$depth <-extract(M.raster, dat.s[,c('x_utm','y_utm')])
+```
 
 
