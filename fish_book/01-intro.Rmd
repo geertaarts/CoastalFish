@@ -1,25 +1,8 @@
-# (PART) Ecological Concepts {-} 
+#  Introduction 
 
-#  Ecological drivers of animal movement, population dynamics, and species distributions 
+Why this study
+What is known about distribution of fish in coastal zone?
+What is the main objective of this study
 
-- demographic drivers specific to different life history stages
-- habitat availability, fragmentation, interspersion of habitats
-- intra- and inter-species interactions, predator-prey dynamics
-- density dependence
-
-
-## Notes
-
-- Geert will take a stab at this section
-- We will look to make connections to different sections of the book as we make progress on them and also revisit this section (including anything we missed initially)
-
-##	A typical list of ecological research questions (where are they, why are they there, where else could they be?) {#aims}
-
-
-- to inform conservation and management of threatened plant and animal species [@franklin2010mapping; @guisan2017habitat]. 
-
-- to make inference about risk of invasion by non-native species
-
--  evolutionary and community ecologists use these models to test theories related to realized and theoretical niches and drivers of speciation [@peterson2011ecological].
 
 

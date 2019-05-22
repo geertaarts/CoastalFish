@@ -1,0 +1,152 @@
+# INLA MODEL FITTING
+
+## Making the model formula and running the INLA model
+
+The model formula used in the inla model is generated from the names of the model matrix, combined with the intercept term and the spatial correlation model ("f(w, model=spde)").
+
+Subsequently, two inla models are run, one assuming that the data are Poisson distributed, and another model assuming that the data are negative binomial distributed.
+
+
+```{r, eval=T, results='hide', echo=T, message=FALSE, warning=FALSE}
+fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
+INLA:::inla.dynload.workaround() 
+I1p <- inla(eval(fsp), family = "poisson", data=inla.stack.data(Stack1),
+            control.compute = list(dic = TRUE, waic = TRUE),
+            control.predictor = list(A = inla.stack.A(Stack1)))
+I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(Stack1),
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),
+             control.predictor = list(A = inla.stack.A(Stack1)))
+I1zip <- inla(eval(fsp), family = "zeroinflatedpoisson1", data=inla.stack.data(Stack1),
+              control.compute = list(dic = TRUE, waic = TRUE),
+              control.predictor = list(A = inla.stack.A(Stack1)))
+I1zinb <- inla(eval(fsp), family = "zeroinflatednbinomial1", data=inla.stack.data(Stack1),
+               control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),
+               control.predictor = list(A = inla.stack.A(Stack1)))
+```
+Once the INLA models are run, a summary can be printed for the models. This summary contains much of the relevant information for the models. The summary also contains the DIC and WAIC information criterions. DIC and WAIC work just like AIC in that the model with the lowest WAIC should be selected.
+
+```{r, eval=T, echo=T}
+summary(I1p)$waic$waic
+```
+
+The Poisson model thus has a WAIC value of `r summary(I1p)$waic$waic`. We can make a simple table to compare the WAIC values of the different models.
+
+```{r, eval=T, echo=T}
+dic  <- c(I1p$dic$dic, I1nb$dic$dic, I1zip$dic$dic, I1zinb$dic$dic)
+waic <- c(I1p$waic$waic, I1nb$waic$waic, I1zip$waic$waic, I1zinb$waic$waic)
+Z     <- cbind(dic, waic)
+rownames(Z) <- c("Poisson model", "Negative binomial model", "Zero Inflated Poisson model", "Zero Inflated Negative binomial model" )
+Z
+```
+
+The negative binomial model has the lowest DIC and WAIC. Let's see the summary of this model.  
+```{r, eval=T, echo=T}
+summary(I1nb)
+```
+The summary displays the call to INLA, some information about the time needed to process the model, information about the fixed effects, random effects, model hyperparameters, and several information criteria. The fixed effects include the intercept and all parameter valuse for the factor variable years. The number of parameter estimates for years is equal the the total number of years in the model minus 1. Likewise, there are two surveys in the data, and the number of parameter estimates in the model is two minus one: only the parameter estimate for the difference between the IBTS and BTS is given. The parameter estimate named "lhauldur" gives the linear predictor for the effect of log haul duration.
+
+The model output indicates that there are random effects for the SPDE2 model.
+
+In this case the model "hyperparameters" provide information about the overdispersion parameter in the negative binomial distribution. Remember that the variance in a negative binomial distribution is equal to $\mu + \mu^{2} / k$. The "size" hyperparameter provides the estimate of $k$. In our case, the estimate of "size" is `r I1nb$summary.hyperpar$mean[1]` and the data is overdispersed (1/overdispersion < 1). 
+
+The two theta parameters describe the spatial field w. Theta2 is equal to  $\log(\kappa)$. Theta1 is equal to $\log(\tau)$ = - $\log(4 \pi \kappa^2 \sigma_{u}^2)/2$. Kappa is a parameter in the Matern correlation function, that defines the rate of decline in the correlation. Large $\kappa$ values indicate a fast decline in correlation. The Matern correlation function contains two parameters: $\kappa$ and $\nu$. While $\kappa$ is being estimates, $\nu$ is assumed to be equal to 1 by default in INLA. 
+
+Plot the histograms of observations and fits for all models. 
+
+```{r, eval=T, echo=T, dpi=600}
+idx <- inla.stack.index(Stack1, tag= 'Fit')$data
+par(mfrow=c(2,2))
+yl <- c(0,log(max(table(dat.s$count),na.rm=T))*1.3)
+names.arg <- as.numeric(names(table(dat.s$count)))
+breaks <- c(as.numeric(names(table(dat.s$count))),1000)
+ltable <- log(table(dat.s$count))
+pos <- barplot(ltable, names.arg = names.arg, ylim = yl, main = "Poisson model")
+points(y=log(table(cut(I1p$summary.fitted.values[idx,"mean"], breaks=breaks))), x = pos[,1], col=2, pch=19)
+pos <- barplot(ltable, names.arg = names.arg, ylim = yl, main = "Negative binomial model")
+points(y=log(table(cut(I1nb$summary.fitted.values[idx,"mean"], breaks=breaks))), x = pos[,1], col=2, pch=19)
+pos <- barplot(ltable, names.arg = names.arg, ylim = yl, main = "ZIP model")
+points(y=log(table(cut(I1zip$summary.fitted.values[idx,"mean"], breaks=breaks))), x = pos[,1], col=2, pch=19)
+pos <- barplot(ltable, names.arg = names.arg, ylim = yl, main = "ZINB model")
+points(y=log(table(cut(I1zinb$summary.fitted.values[idx,"mean"], breaks=breaks))), x = pos[,1], col=2, pch=19)
+```
+
+We mentioned the two theta hyperparamaters earlier, and how they contain the information about the spatial correlation in the model. These hyperparameters and some derived hyperparameters from the spde can be extracted from the model using inla.spde2.result()
+
+```{r, eval=T, echo=T}
+# extract spde2 results 
+SpatField.w <- inla.spde2.result(inla = I1nb, name = "w", spde = spde, do.transfer = TRUE)
+```
+
+This object contains the hyperparameters and the information about e.g. $\kappa$ and $\sigma_{u}$.
+The parameter $\kappa$ defines the rate of decline in correlation, and the parameters $\sigma_{u}^2$ indicates the variance. Below, we use the inla.emarginal function of inla to compute the expected values for the hyperparameters.   
+
+```{r, eval=T, echo=T}
+# Spatial info
+Kappa <- inla.emarginal(function(x) x, 
+SpatField.w$marginals.kappa[[1]] )
+Sigma_u <- inla.emarginal(function(x) sqrt(x), 
+SpatField.w$marginals.variance.nominal[[1]] )
+range <- inla.emarginal(function(x) x, 
+SpatField.w$marginals.range.nominal[[1]] )
+c(Kappa, Sigma_u, range)
+```
+
+The posterior mean of $\kappa$ is `r Kappa` and the posterior mean $\sigma_{u}$ is `r Sigma_u`. The range is the distance at which the spatial correlation is approxmately 0.1. In this case, this range is approximately `r round(range)' km. Below we plot the correlation as a function of distance, with a dashed vertical line at the range and a dashed horizontal line where the correlation is exactly 0.1.
+```{r, eval=T, echo=T,  dpi=600}
+# Show correlation structure
+LocMesh <- mesh1a$loc[,1:2]
+# And then we calculate the distance between each vertex.
+D <- as.matrix(dist(LocMesh))
+# Using the estimated parameters from the model (see above)
+# we can calculate the imposed Matern correlation values.
+d.vec <- seq(0, max(D), length = 100)      
+Cor.M <- (Kappa * d.vec) * besselK(Kappa * d.vec, 1) 
+#Cor.M[1] <- 1
+# Which we plot here:
+par(mfrow=c(1,1))
+plot(x = d.vec, y = Cor.M, 
+     type = "l", 
+     xlab = "Distance (km)", 
+     ylab = "Correlation")
+abline(h = 0.1, lty = 2)
+abline(v = range, lty = 2)
+```
+
+
+```{r, eval=T, echo=F, fig.width=8, fig.height=4, dpi=600}
+wproj <- inla.mesh.projector(mesh1c, xlim = range(Loc[,1]), ylim = range(Loc[,2])) 
+wm.pm100100  <- inla.mesh.project(wproj, I1nb$summary.random$w$mean)
+wsd.pm100100 <- inla.mesh.project(wproj, I1nb$summary.random$w$sd)
+
+grid     <- expand.grid(x = wproj$x, y = wproj$y)
+grid$zm  <- as.vector(wm.pm100100)   
+grid$zsd <- as.vector(wsd.pm100100)   
+p1 <- levelplot(zm ~ x * y,
+                data = grid, 
+                scales = list(draw = TRUE),
+                xlab = list("Easting", cex = 1),
+                ylab = list("Northing", cex = 1),
+                main = list("Posterior mean spatial random fields", cex = 1),
+                col.regions=tim.colors(25, alpha = 1),
+                panel=function(x, y, z, subscripts,...){
+                  panel.levelplot(x, y, z, subscripts,...)
+                  grid.points(x = dat.s$x_utm_km,
+                              y = dat.s$y_utm_km, 
+                              pch = 1,
+                              size = unit(dat.s$count/10, "char"))  
+                }) + xyplot(ym~ xm, UTMmapFinal, type='l', lty=1, lwd=0.5, col='black')
+p2 <- levelplot(zsd ~ x * y,
+                data = grid, 
+                scales = list(draw = TRUE),
+                xlab = list("Easting", cex = 1),
+                ylab = list("Northing", cex = 1),
+                main = list("Posterior sd spatial random fields", cex = 1),
+                col.regions=tim.colors(25, alpha = 1),
+                panel=function(x, y, z, subscripts,...){
+                  panel.levelplot(x, y, z, subscripts,...)
+                  
+                }) + xyplot(ym~ xm, UTMmapFinal, type='l', lty=1, lwd=0.5, col='black')
+grid.arrange(p1,p2, ncol=2)
+
+```
+

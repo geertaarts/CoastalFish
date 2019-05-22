@@ -44,12 +44,11 @@ The number of vertices is stored in mesh1a$n and mesh1b$n. In our example, the n
 
 The meshes can be plotted using the plot() function on the mesh object. Once the mesh is plotted, the locations of the samples (stored in the Loc object) can be overlayed using points(). Below, the two meshes are plotted side-by-side, together with a map in UTM coordinates.
 
-```{r meshmap, eval=T, echo=TRUE, dpi=600}
+```{r meshmap, eval=T, echo=TRUE, dpi=600, fig.width=10, fig.height=7}
 wld <- map('world', xlim=c(-5,15), ylim=c(47,62),plot=FALSE)
 UTMmap <- project(cbind(wld$x, wld$y), "+proj=utm +zone=31U ellps=WGS84")
 UTMmapFinal <- data.frame("xm"=UTMmap[,1]/1e3, "ym"=UTMmap[,2]/1e3)
 
-windows(10,7)
 par(mfrow=c(1,3),mai=c(0.1,0.1,0.6,0.1))
 plot(mesh1a,main="Convex Hull")
 lines(UTMmapFinal, lwd=2)
@@ -87,15 +86,12 @@ Because of the link function of the Poisson and negative binomial that we will b
 
 Note that in code below the names in the model matrix should not contain any special characters! 
 ```{r, eval=T, echo=T}
-Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + tpi_3 + tpi_15 + offset, data=dat.s)
+Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + tpi_3 + tpi_15 + missing + the.offset, data=dat.s)
 head(Xmatrix)
 ```
 
 This Xmatrix contains the model matrix with the fixed effects, including the intercept (The column for the intercept is named "(Intercept)", and it is 1 for all observations). However, in the next step the intercept is removed from the model matrix. The intercept is then included when making the stack, and named "Intercept" (without brackets).
 
-# Next to do: Deal with missing values. Make no-data for depth, very shallow, tpi as an average, or just remove all together, or use 
-# Look at offset of -Inf
-# Deal with no sediment data for Wadden SEa
 
 ```{r, eval=T, echo=T}
 X <- as.data.frame(Xmatrix[,-1])
@@ -112,5 +108,9 @@ Stack1 <- inla.stack(
     w=w.st))                  #Spatial field
 ```
 
+Save the workspace
 
+```{r, eval=T, echo=TRUE}
+  save.image(file.path(path,"workspaces/INLA_pepared_data.rdata"))
+```
 
