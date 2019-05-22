@@ -25,16 +25,13 @@ Next we load the data and standardize it in a way that it can be used by a more 
 
 dat<-read.csv(file.path(path,"fish/dfs/dfs4pmr_aco_ple.csv"))
 names(dat)<-tolower(names(dat))
-dat$date<-paste(dat$day,"/",dat$month,"/",dat$year)
-dat$offset<-log(1/(dat$age1/dat$snumtot))
+dat$date<-paste(dat$day,"/",dat$month,"/",dat$year,sep="")
 names(dat)[names(dat) == 'latitude_s'] <- 'lat'
 names(dat)[names(dat) == 'longitude_s'] <- 'lon'
 names(dat)[names(dat) == 'snumtot'] <- 'count'
 dat$date<-as.POSIXct(strptime(dat$date,format="%d/%m/%Y"))
 
 dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
-dat$lat[dat$lat<0]<-(-1)*dat$lat[dat$lat<0]
-dat$lon[dat$lon<0]<-(-1)*dat$lon[dat$lon<0]
 
 xy<-project(cbind(dat$lon,dat$lat), "+init=epsg:32631")
 dat$x_utm<-xy[,1]
@@ -42,6 +39,23 @@ dat$y_utm<-xy[,2]
   
 head(dat)
 
+```
+
+
+Some processing needs to be done. This includes removing rows with no data for the coordinates. The NA's for snumtot/count are actualy zeros. However, because the proportion of a specific ages ends up in the offset, we set it to >0.1. Because the corresponding count = 0, it doesn't matter what value this is, as long as it is >0. It is not used anyway. 
+
+```{r data_process, echo=TRUE}
+dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
+dat$count[is.na(dat$count)]<-0
+for (age in 1:10){
+  dat[,paste("age",age,sep="")][is.na(dat[,paste("age",age,sep="")])]<-0.0001
+ }
+
+```
+Next we calculate the offset. The column stotnum/count represent the actual number of individuals. For the age, a age-length key is used to convert the raw counts to numbers per age class. Since we would like to maintain the raw data, we specify an offset. 
+
+```{r offset, echo=TRUE}
+dat$offset<-log(1/(dat$age1/dat$count))
 ```
 
 We remove data from Germany and Denmark, and for the moment only concentrate on the data from 2017 for plaice.
@@ -210,6 +224,8 @@ par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2))
 
 ## Link survey data with environmental data
 
+Below the model data is linked to the explanatory variables.
+
 ```{r extract, echo=TRUE, eval=T}
       dat.s$slib <-extract(slibNL, dat.s[,c('x_utm','y_utm')])
       dat.s$zand <-extract(zand, dat.s[,c('x_utm','y_utm')])
@@ -220,5 +236,34 @@ par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2))
       dat.s$tpi_15 <-extract(tpi_depth15, dat.s[,c('x_utm','y_utm')])
       dat.s$depth <-extract(M.raster, dat.s[,c('x_utm','y_utm')])
 ```
+
+For some data points the values for the environmental variables are missing. For "depth" we can simply use "water_depth" as measured during the survey. To check whether this is correct, we make a plot between these two.
+
+```{r water_depth_vs_depth, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=4, fig.height=4}
+
+plot(-dat.s$water_depth,dat.s$depth)    
+```
+
+For sediment, data is missing for the Wadden Sea and some part of the Delta area. To still allow the data to be used in the model, we create a new variable which indicates whether the sampling locations is located within the missing-data area, and we set the values for the sediment variables to 0. 
+
+```{r missing_1, echo=TRUE, eval=T}
+      dat.s$missing<-0
+      dat.s$missing[is.na(dat.s$slib)]<-1
+      dat.s$slib[is.na(dat.s$slib)]<-0
+      dat.s$zand[is.na(dat.s$zand)]<-0
+      dat.s$dz10[is.na(dat.s$dz10)]<-0
+      dat.s$dz60[is.na(dat.s$dz60)]<-0
+   
+```
+For the topographic position index it is set to tpi values of finer spatial scales when missing. E.g. When there is no data for tpi 15cells, we will use tpi of 9 cells. For the finest scale (i.e. tpi 3cells) we set it to the mean tpi value. This could be improved
+ 
+```{r missing_2, echo=TRUE, eval=T}
+      dat.s$missing<-0
+       dat.s$tpi_3[is.na(dat.s$tpi_3)]<-mean(dat.s$tpi_3,na.rm=TRUE)
+      dat.s$tpi_9[is.na(dat.s$tpi_9)] <-dat.s$tpi_3[is.na(dat.s$tpi_9)]
+      dat.s$tpi_15[is.na(dat.s$tpi_15)] <-dat.s$tpi_9[is.na(dat.s$tpi_15)]
+      summary(dat.s)
+```
+
 
 

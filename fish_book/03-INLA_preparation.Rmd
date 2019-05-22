@@ -87,7 +87,7 @@ Because of the link function of the Poisson and negative binomial that we will b
 
 Note that in code below the names in the model matrix should not contain any special characters! 
 ```{r, eval=T, echo=T}
-Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + depth + tpi_3 + tpi_15 + offset, data=dat.s)
+Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + tpi_3 + tpi_15 + offset, data=dat.s)
 head(Xmatrix)
 ```
 
