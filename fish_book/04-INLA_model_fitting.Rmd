@@ -150,3 +150,36 @@ grid.arrange(p1,p2, ncol=2)
 
 ```
 
+Next steps to take:
+
+- Test for inclusion of offset, use simulations with latent field, and use negative binomial and Poisson. See also http://www.r-inla.org/models/tools
+
+- Include smooth functions of covariates. Options are polynomials (poly function) or function SmoothCon (mgcv package?)
+
+- First use fewer covariates in the model, e.g. only use s(depth), s(dz10) and missing
+
+- Create a regular prediction grid. One way to do this is to create a convex hull around the data-points and only use within the convex hull. Remove points with missing covariates
+
+- Write model validation code. Similar to prediction table, the way to do this is to add a stack 'predict' and use the actual observations. Next use the correct likelihood function to test 
+
+- Include data exploration, like histogram of response data and dotplots of explanatory variables
+
+
+Open questions:
+
+- Is there a nice polygon to define study area
+
+- Should we include sediment data from inner-Delta and Wadden Sea? Perhaps use subtidal SIBES?
+
+- what are the other covariates to include? I.e. temperature, salinity, current velocity?
+
+- Include seal predation pressure?
+
+- Divide fishing effort data into beam and pulse?
+
+- How important is it to have a one overarching model, using data from all years?
+
+- What is the research question to answer?
+
+- Use ERSEM model predictions (Johan van der Molen)?
+
