@@ -164,22 +164,19 @@ Next steps to take:
 
 - Include data exploration, like histogram of response data and dotplots of explanatory variables
 
+- Include ICES areas, see mail Loes
+
+- Include fishing effort maps
 
 Open questions:
 
-- Is there a nice polygon to define study area
 
-- Should we include sediment data from inner-Delta and Wadden Sea? Perhaps use subtidal SIBES?
+- Should we include sediment data from inner-Delta and Wadden Sea? Perhaps use subtidal SIBES? Not for now. In future analysis, use perhaps use SIBES data
 
-- what are the other covariates to include? I.e. temperature, salinity, current velocity?
+- what are the other covariates to include? I.e. temperature, salinity, current velocity? Yes, but wait for ARCADIS data if the come available.
 
-- Include seal predation pressure?
+- Include seal predation pressure? Not for this analysis
 
-- Divide fishing effort data into beam and pulse?
+- Use tidal data: Tidal data may influence both abundance (e.g. movement to shallow areas during high tide), but also catchability. E.g. vertical movement depending on tide. Chen will include this, so wait for her analysis, and based on outcome, possibly include.
 
-- How important is it to have a one overarching model, using data from all years?
-
-- What is the research question to answer?
-
-- Use ERSEM model predictions (Johan van der Molen)?
-
+- For sandeel, heads are measured, and head-length measurements could be used to reconstruct length. 

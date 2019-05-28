@@ -1,6 +1,6 @@
 --- 
 title: "Modelling spatial distribution of coastal Fish"
-author: "Geert Aarts, Loes Bolle, Ingrid Tulp & Jan Jaap Poos"
+author: "Geert Aarts, Loes Bolle, Ingrid Tulp, Niels Hintzen, Sander Glorius & Jan Jaap Poos"
 date: "`r Sys.Date()`"
 site: bookdown::bookdown_site
 output: bookdown::gitbook
