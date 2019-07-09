@@ -13,7 +13,8 @@ library(lattice); library(latticeExtra); library(grid); library(gridExtra);
 library(rgdal); library(rgeos); 
 library(mapdata); library(maptools);
 library(raster);library(geosphere);
-library(spatialEco)
+library(spatialEco); library(rgeos); 
+library(RColorBrewer);library(GISTools)
 
 ```
 
@@ -230,33 +231,31 @@ Here we load and plot the Sediment data. These data are from 2007.
 ```{r fish data, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=8, fig.height=8}
 
 # Load fisheries data
-  load("W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/grd_2004.Rdata")
+#  load("W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/grd_2004.Rdata")
 #definieer projection
 common.projection <- CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
 
 
-###############################
-rm(list=ls());
-#.libPaths("D:/WMR/Rpackages"); 
-#library(vmstools);
-library(rgdal);library(raster);library(maptools);library(geosphere) #gebruik R 3.3.5 (nodig voor polygonICES)
-library(rgeos); library(RColorBrewer);library(GISTools)  
+xy <- data.frame(c(3,4,5),c(51,53,55))
+xy<-SpatialPoints(xy)
+projection(xy)<-CRS("+proj=longlat +datum=WGS84")
+xy.d<-cbind(as.data.frame(xy),as.data.frame(spTransform(xy,CRS("+init=epsg:32631"))))
+xy.d<-cbind(xy.d,as.data.frame(spTransform(xy,CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"))))
+
+
 
 ###############################
 #1. Folders
-#inPath    <- "W:/IMARES/Data/VMS_/2019/PMR_2019/Analyse/R_VMS_tbv_PercVis/Output/Script1.2/"
 inPath    <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/"
 
-#outPath   <- "W:/IMARES/Data/VMS_/2019/PMR_2019/Analyse/R_VMS_tbv_PercVis/Output/Script1.3/"
-#shapePath <- "W:/IMARES/Data/VMS_/2019/PMR_2019/Analyse/R_VMS_tbv_PercVis/ShapeDFS"
-shapePath <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/ICES_gebieden/ICES_gebieden_V7_WGS84/"
+shapePath.x <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/ICES_gebieden/ICES_gebieden_V7_WGS84/"
 
-shapePMR  <- "W:/IMARES/Data/VMS_/2019/PMR_2019/Analyse/R_VMS_tbv_PercVis/ShapePMR"
-shapeEuro <- "W:/IMARES/Data/VMS_/2019/PMR_2019/Analyse/R_VMS_tbv_PercVis/ShapeEuro/"
+shapePMR  <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/Shapefiles/"
+shapeEuro <- shapePMR
 
 
 #lees shapes in
-load(file=paste(shapePMR,"/SHAPES.RDATA",sep=''))
+load(file=paste(shapePMR,"SHAPES.RDATA",sep=''))
 load(file=paste(shapeEuro,"eurPols.Rdata",sep=''))
 proj4string(eurPols)<-"+proj=longlat +ellps=WGS84"
 eurPU <- spTransform(eurPols,common.projection)
@@ -270,7 +269,8 @@ VD  <- spTransform(VD, common.projection)
 proj4string(VD.trans3)<-"+proj=longlat +ellps=WGS84"
 VD.trans3  <- spTransform(VD.trans3, common.projection)
 
-DFS  <- readOGR(shapePath,layer='ICES_gebieden_V7_WGS84')
+#DFS  <- readOGR(shapePath,layer="ICES_gebieden_V7_WGS84")
+DFS  <- readOGR(file.path(shapePath.x,"ICES_gebieden_V7_WGS84.shp"))
 DFS <- spTransform(DFS, common.projection)
 
 #range plot 
@@ -281,45 +281,21 @@ xmax    <- max(xrange)
 ymin    <- min(yrange)
 ymax    <- max(yrange)
 
-#- Instellingen voor figuren
-Color <- brewer.pal(9, "YlOrRd")
-Color <- c('white',Color[2:9]) #9 kleuren
-
-
 
 list.files(inPath)
-iY <- 2006
+iYs<- 2004:2018
+iY <- 2017
+iGs <- c('Gar','BkorG','Pkor','Bkor','Bor','Dreg','Ander')
 iG <- 'Gar'
+iMs<-1:12
+iM <- 9
 
-for (iG in c('Gar','BkorG','Pkor','Bkor','Bor','Dreg','Ander'))
-{
-  
-for (iY in 2004:2018)
-{
 load(paste(inPath,'grd_',iY,'.RData',sep=''))
 
-#maak er polygonen van
-grdPols <- as(grd, "SpatialPixels") 
-grdPols <- as(grdPols, "SpatialPolygons")
-projection(grdPols)
-
-#alleen surface per year
-grd@data$Gar_tot <- apply(grd@data[,substr(names(grd@data),1,(5+nchar(iG))) %in% paste(iG,'_surf',sep='')],1,sum,na.rm=T)
-#maak catergorien + legenda
-if(iG == 'Gar')
-{
-SQcol <- c(-1,0,c(0.5, 1, 5, 10, 20, 40, 60, 1000))
-legval   <- list(ALL = c("0",
-                         "0 <= 0.5"  ,"0.5 <= 1.00"  ,"1.00 <= 5.00","5.00 <= 10",
-                         "10 <= 20","20 <= 40" ,"40  <= 60 ",">60"))
-}else{
-  SQcol <- c(-1,0,c(0.3, 0.75, 1.5, 3, 7.5, 15, 30, 250))
-  legval   <- list(ALL = c("0",
-                           "0 <= 0.3"  ,"0.3 <= 0.75"  ,"0.75 <= 1.50","1.50 <= 3.00",
-                           "3.0 <= 7.5","7.50 <= 15" ,"15  <= 30 ",">30"))
-}
-#definieer de kleuren
-cols     <- Color[cut(grd@data[,which(names(grd@data) == 'Gar_tot')],breaks=SQcol)]
+the.var<-paste(iG,"surf",iM,sep="_")
+    v<-grd@data[,the.var]
+ grd.raster <- rasterFromXYZ(cbind(coordinates(grd),t(t(v))))  #Convert first two columns as lon-lat and 
+ 
 
 #definieer titel
 if(iG == 'Gar')    ititel <- 'garnalen'
@@ -330,57 +306,15 @@ if(iG == 'Bor')    ititel <- 'borden'
 if(iG == 'Dreg')   ititel <- 'dreggen'
 if(iG == 'Anders') ititel <- 'overige'
 
-graphics.off()
-filename <- paste(outPath,ititel,"_",iY,'.png',sep='')
-png(file=filename,width = 800,height = 800)
-
-plot(1,1,col=grey(0.3),xlim=c(xmin,xmax),ylim=c(ymin, ymax),xlab="",ylab="",las=1,
-       asp=1, main=paste(ititel,iY,sep=' '), yaxt='n',xaxt='n',
-       cex.main=2,cex.axis=2,
+plot(grd.raster,xlim=c(xmin,xmax),ylim=c(ymin, ymax),xlab="",ylab="",las=1,
+       asp=1, main=paste(ititel,iY,sep=' '),
        bty='n' )
-axis(1,cex.axis=2);axis(2,cex.axis=2)
-plot(grdPols, col=cols,add=T, border='transparent')
-plot(eurPU, add=T, col='chartreuse3',lwd=1)
+plot(eurPU, add=T,border="grey75",col="grey90")
 plot(DFS, add=T)
 plot(VD, add=T,border='blue',lwd=2)
 plot(BB, add=T,border='blue',lwd=2)
+box(lwd=2)
 
-legend('bottomright',fill=Color,legval$ALL)
-legend('topright', paste(range(round(grd@data$Gar_tot),0),collapse=" - "))
-dev.off()
-print(paste(iG,iY))
-}}
-  
-  plot(density(grd@data$Gar_tot[grd@data$Gar_tot>0]))
-  abline(v=seq(0,200,20))
-
-
-# Create regular grid based on extremes of fish data
-par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2)) 
-  slibNL<-raster(file.path(env.path,"sediment/NL/ascii/slib_juli2007.asc"))
-    projection(slibNL)<-CRS("+init=epsg:32631")
-    plot(slibNL,xaxt="n",yaxt="n",main="slib")
-    plot(land.utm,add=TRUE,border="grey75",col="grey90")
-    box()
-    
-    zand<-raster(file.path(env.path,"sediment/NL/ascii/zand_afgeleid.asc"))
-    projection(zand)<-CRS("+init=epsg:32631")
-    plot(zand,xaxt="n",yaxt="n",main="zand")
-    plot(land.utm,add=TRUE,border="grey75",col="grey90")
-    box()
-    
-    dz10<-raster(file.path(env.path,"sediment/NL/ascii/dz10_juli2007.asc"))
-    projection(dz10)<-CRS("+init=epsg:32631")
-    plot(dz10,xaxt="n",yaxt="n",main="dz10")
-    plot(land.utm,add=TRUE,border="grey75",col="grey90")
-    box()
-    
-    dz60<-raster(file.path(env.path,"sediment/NL/ascii/dz60_juli2007.asc"))
-    projection(dz60)<-CRS("+init=epsg:32631")
-    plot(dz60,xaxt="n",yaxt="n",main="dz60")
-    plot(land.utm,add=TRUE,border="grey75",col="grey90")
-    box()
-    
 ```
 
 ## Link survey data with environmental data
