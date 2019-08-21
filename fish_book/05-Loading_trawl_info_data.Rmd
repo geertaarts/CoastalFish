@@ -1,0 +1,66 @@
+#Data preparation
+
+##Load and prepare survey data
+
+There are two file types; 
+- Trawl table, defining where, when and how trawling took place
+- Catch data, defining which species (and size) were caught
+
+The trawl list table is the one to be linked to environmental data, and can later be linked to fish data.
+
+First the necessary libraries are loaded. 
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+if (Sys.info()["nodename"]=="L0151542") {path<-"c:/github/CoastalFish/fish_book/data";
+env.path<-"C:/Users/aarts012/Dropbox/Seal_database/environmental";
+fish.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/DFS/"}
+
+library(INLA); library(fields); 
+library(mgcv)
+library(lattice); library(latticeExtra); library(grid); library(gridExtra);
+library(rgdal); library(rgeos); 
+library(mapdata); library(maptools);
+library(raster);library(geosphere);
+library(spatialEco); library(rgeos); 
+library(RColorBrewer);library(GISTools)
+
+```
+
+Next we load the trawl data and standardize it in a way that it can be used by a more the standardized R INLA protocol.
+
+```{r trawlload, echo=TRUE}
+dat<-read.csv(file.path(fish.path,"dfs4pmr_trllst.csv"))
+names(dat)<-tolower(names(dat))
+```
+
+A column for the date and time is created based on separate columns
+
+```{r time_process_trawl, echo=TRUE}
+dat$time<-sprintf("%04d", dat$time)
+dat$date_time<-paste(dat$year,"-", dat$month,"-",dat$day," ", dat$time, sep="")
+dat$ddate<-as.POSIXct(strptime(dat$date_time,format="%Y-%m-%d %H%M",tz="UTC")) 
+tail(dat[,c("date_time","ddate")])
+dat$day_of_year<-as.numeric(difftime(dat$ddate,as.POSIXct(strptime(paste(dat$year,"-01-01 0000", sep=""),format="%Y-%m-%d %H%M",tz="UTC"),units="days")))
+```
+
+All necessary columns are given a standard name, and utm coordinates are calculated. All rows with no lat or lon coordinates are removed. 
+
+```{r process_trawl, echo=TRUE}
+# Change names
+  names(dat)[names(dat) == 'latitude_s'] <- 'lat'
+  names(dat)[names(dat) == 'longitude_s'] <- 'lon'
+  
+# Only select columns with data  
+  dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
+
+# Get utm coordinates  
+  xy<-project(cbind(dat$lon,dat$lat), "+init=epsg:32631")
+  dat$x_utm<-xy[,1]
+  dat$y_utm<-xy[,2]
+ 
+# Show data   
+  head(dat)
+``` 
+
+
+
