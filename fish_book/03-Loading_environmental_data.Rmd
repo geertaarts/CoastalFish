@@ -1,0 +1,75 @@
+```{r landread, echo=TRUE}
+library(rgdal)
+land<-rgdal::readOGR(dsn=file.path(env.path,"landsea/WGS84/"),layer="WGS84geoKust500")
+projection(land)<-CRS("+proj=longlat +datum=WGS84")
+land.utm<-land
+land.utm <- spTransform(land,CRS("+init=epsg:32631"))
+```
+
+## Load environmental data
+
+### Load depth data
+
+Next we load and process the depth data. We only run it once, to save time. Only depth data is selected within the range of the DFS survey data.
+
+```{r depthread, echo=TRUE, cache=TRUE, eval=TRUE}
+
+# 
+if (is.element("depth_raster.rdata",dir(file.path(env.path,"depth/Europe/Emodnet_DTM2018/")))){
+  load(file.path(env.path,"depth/Europe/Emodnet_DTM2018/depth_raster.rdata"))}
+
+if (is.element("depth_raster.rdata",dir(file.path(env.path,"depth/Europe/Emodnet_DTM2018/")))==FALSE){
+  
+  # What is the cellsize?
+  val<-raster(file.path(env.path,"depth/europe/Emodnet_DTM2018/C4_2018.asc"))
+  cellsize<-(val@extent@xmax-val@extent@xmin)/val@ncols
+  print(cellsize)
+  dist.x<-distm(c(5, 53), c(5+cellsize, 53))
+  print(dist.x)
+  dist.y<-distm(c(5, 53), c(5, 53+cellsize))
+  print(dist.y)
+  grid.size<-min(c(dist.x,dist.y))
+  grid.size<-500
+  
+  # Create regular grid based on extremes of fish data
+  xy<-expand.grid(x=seq(from=min(dat$x_utm), to=max(dat$x_utm),by=grid.size),
+                  y=seq(from=min(dat$y_utm), to=max(dat$y_utm),by=grid.size))
+  xy$lon<-xy$x; xy$lat<-xy$y
+  coordinates(xy) <- c("lon", "lat")
+  proj4string(xy) <- CRS("+init=epsg:32631")
+  xy <- as.data.frame(spTransform(xy, CRS("+proj=longlat +datum=WGS84")))
+  
+  # Extract values  
+  tiles<-c("E4","E5","D4","D5","C4","C5")
+  for (i in tiles){
+    print(i)
+    val<-raster(paste(env.path,"/depth/europe/Emodnet_DTM2018/",i,"_2018.asc",sep=""))
+    xy[,i]<-extract(val, xy[,c('lon','lat')])
+  }
+  
+  # Calculate means of depth  
+  xy$depth<-rowMeans(xy[,c("E4","E5","D4","D5","C4","C5")],na.rm=TRUE)
+  summary(xy$depth)
+  xy<-xy[,-na.omit(match(c("E4","E5","D4","D5","C4","C5"),names(xy)))]
+  xy<-xy[,c("x","y","depth")]
+  
+  # Create raster
+  M<-matrix(xy$depth,nrow=length(unique(xy$x)),ncol=length(unique(xy$y)))
+  M<-t(M)
+  M<-M[nrow(M):1,]
+  M.raster<-raster(M,xmn=min(xy$x), xmx=max(xy$x), ymn=min(xy$y), ymx=max(xy$y))
+  
+  # Write.table
+  save(M.raster,file=file.path(env.path,"depth/europe/Emodnet_DTM2018/depth_raster.rdata"))
+  
+}
+
+```
+
+And plot the depth data
+
+```{r depth_plot, echo=TRUE, eval=T, dpi=300, fig.width=6, fig.height=6}
+plot(M.raster)
+plot(land.utm,add=TRUE,border="grey75",col="grey90")
+box(lwd=2)  
+```

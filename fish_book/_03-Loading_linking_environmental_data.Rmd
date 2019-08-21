@@ -1,0 +1,256 @@
+```{r landread, echo=TRUE}
+library(rgdal)
+land<-rgdal::readOGR(dsn=file.path(env.path,"landsea/WGS84/"),layer="WGS84geoKust500")
+projection(land)<-CRS("+proj=longlat +datum=WGS84")
+land.utm<-land
+land.utm <- spTransform(land,CRS("+init=epsg:32631"))
+```
+
+## Load environmental data
+
+### Load depth data
+
+Next we load and process the depth data. We only run it once, to save time. Only depth data is selected within the range of the DFS survey data.
+
+```{r depthread, echo=TRUE, cache=TRUE, eval=TRUE}
+
+# 
+if (is.element("depth_raster.rdata",dir(file.path(env.path,"depth/Europe/Emodnet_DTM2018/")))){
+  load(file.path(env.path,"depth/Europe/Emodnet_DTM2018/depth_raster.rdata"))}
+
+if (is.element("depth_raster.rdata",dir(file.path(env.path,"depth/Europe/Emodnet_DTM2018/")))==FALSE){
+  
+  # What is the cellsize?
+  val<-raster(file.path(env.path,"depth/europe/Emodnet_DTM2018/C4_2018.asc"))
+  cellsize<-(val@extent@xmax-val@extent@xmin)/val@ncols
+  print(cellsize)
+  dist.x<-distm(c(5, 53), c(5+cellsize, 53))
+  print(dist.x)
+  dist.y<-distm(c(5, 53), c(5, 53+cellsize))
+  print(dist.y)
+  grid.size<-min(c(dist.x,dist.y))
+  grid.size<-500
+  
+  # Create regular grid based on extremes of fish data
+  xy<-expand.grid(x=seq(from=min(dat$x_utm), to=max(dat$x_utm),by=grid.size),
+                  y=seq(from=min(dat$y_utm), to=max(dat$y_utm),by=grid.size))
+  xy$lon<-xy$x; xy$lat<-xy$y
+  coordinates(xy) <- c("lon", "lat")
+  proj4string(xy) <- CRS("+init=epsg:32631")
+  xy <- as.data.frame(spTransform(xy, CRS("+proj=longlat +datum=WGS84")))
+  
+  # Extract values  
+  tiles<-c("E4","E5","D4","D5","C4","C5")
+  for (i in tiles){
+    print(i)
+    val<-raster(paste(env.path,"/depth/europe/Emodnet_DTM2018/",i,"_2018.asc",sep=""))
+    xy[,i]<-extract(val, xy[,c('lon','lat')])
+  }
+  
+  # Calculate means of depth  
+  xy$depth<-rowMeans(xy[,c("E4","E5","D4","D5","C4","C5")],na.rm=TRUE)
+  summary(xy$depth)
+  xy<-xy[,-na.omit(match(c("E4","E5","D4","D5","C4","C5"),names(xy)))]
+  xy<-xy[,c("x","y","depth")]
+  
+  # Create raster
+  M<-matrix(xy$depth,nrow=length(unique(xy$x)),ncol=length(unique(xy$y)))
+  M<-t(M)
+  M<-M[nrow(M):1,]
+  M.raster<-raster(M,xmn=min(xy$x), xmx=max(xy$x), ymn=min(xy$y), ymx=max(xy$y))
+  
+  # Write.table
+  save(M.raster,file=file.path(env.path,"depth/europe/Emodnet_DTM2018/depth_raster.rdata"))
+  
+}
+
+```
+
+And plot the depth data
+
+```{r depth_plot, echo=TRUE, eval=T, dpi=300, fig.width=6, fig.height=6}
+plot(M.raster)
+plot(land.utm,add=TRUE,border="grey75",col="grey90")
+box(lwd=2)  
+```
+
+Calculate topographic index and plot. Note that you will get no data values at the edges. One way to prevent this could be to calculate the TPI for different scales (e.g. 1, 3, etc.) and use a smaller scale value when missing for the larger scale (e.g. 15)
+
+```{r tpi, echo=TRUE, eval=T, dpi=300, fig.width=6, fig.height=6}
+  tpi_depth3<-tpi(M.raster, scale = 3, win = "rectangle", normalize = FALSE)
+  tpi_depth9<-tpi(M.raster, scale = 9, win = "rectangle", normalize = FALSE)
+  tpi_depth15<-tpi(M.raster, scale = 15, win = "rectangle", normalize = FALSE)
+  
+  plot(tpi_depth15)
+  plot(land.utm,add=TRUE,border="grey75",col="grey90")
+  box(lwd=2)  
+```
+
+### Load sediment data
+
+Here we load and plot the Sediment data. These data are from 2007. 
+
+```{r sediment_read, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=8, fig.height=8}
+
+# Create regular grid based on extremes of fish data
+par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2)) 
+  slibNL<-raster(file.path(env.path,"sediment/NL/ascii/slib_juli2007.asc"))
+    projection(slibNL)<-CRS("+init=epsg:32631")
+    plot(slibNL,xaxt="n",yaxt="n",main="slib")
+    plot(land.utm,add=TRUE,border="grey75",col="grey90")
+    box()
+    
+    zand<-raster(file.path(env.path,"sediment/NL/ascii/zand_afgeleid.asc"))
+    projection(zand)<-CRS("+init=epsg:32631")
+    plot(zand,xaxt="n",yaxt="n",main="zand")
+    plot(land.utm,add=TRUE,border="grey75",col="grey90")
+    box()
+    
+    dz10<-raster(file.path(env.path,"sediment/NL/ascii/dz10_juli2007.asc"))
+    projection(dz10)<-CRS("+init=epsg:32631")
+    plot(dz10,xaxt="n",yaxt="n",main="dz10")
+    plot(land.utm,add=TRUE,border="grey75",col="grey90")
+    box()
+    
+    dz60<-raster(file.path(env.path,"sediment/NL/ascii/dz60_juli2007.asc"))
+    projection(dz60)<-CRS("+init=epsg:32631")
+    plot(dz60,xaxt="n",yaxt="n",main="dz60")
+    plot(land.utm,add=TRUE,border="grey75",col="grey90")
+    box()
+    
+```
+
+### Load fisheries data
+
+Here we load and plot the Sediment data. These data are from 2007. 
+
+```{r fish data, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=8, fig.height=8}
+
+# Load fisheries data
+#  load("W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/grd_2004.Rdata")
+#definieer projection
+common.projection <- CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+
+
+xy <- data.frame(c(3,4,5),c(51,53,55))
+xy<-SpatialPoints(xy)
+projection(xy)<-CRS("+proj=longlat +datum=WGS84")
+xy.d<-cbind(as.data.frame(xy),as.data.frame(spTransform(xy,CRS("+init=epsg:32631"))))
+xy.d<-cbind(xy.d,as.data.frame(spTransform(xy,CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"))))
+
+
+
+###############################
+#1. Folders
+inPath    <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/"
+
+shapePath.x <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/ICES_gebieden/ICES_gebieden_V7_WGS84/"
+
+shapePMR  <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/Shapefiles/"
+shapeEuro <- shapePMR
+
+
+#lees shapes in
+load(file=paste(shapePMR,"SHAPES.RDATA",sep=''))
+load(file=paste(shapeEuro,"eurPols.Rdata",sep=''))
+proj4string(eurPols)<-"+proj=longlat +ellps=WGS84"
+eurPU <- spTransform(eurPols,common.projection)
+
+proj4string(BB)<-"+proj=longlat +ellps=WGS84"
+BB  <- spTransform(BB, common.projection)
+
+proj4string(VD)<-"+proj=longlat +ellps=WGS84"
+VD  <- spTransform(VD, common.projection)
+
+proj4string(VD.trans3)<-"+proj=longlat +ellps=WGS84"
+VD.trans3  <- spTransform(VD.trans3, common.projection)
+
+#DFS  <- readOGR(shapePath,layer="ICES_gebieden_V7_WGS84")
+DFS  <- readOGR(file.path(shapePath.x,"ICES_gebieden_V7_WGS84.shp"))
+DFS <- spTransform(DFS, common.projection)
+
+#range plot 
+xrange  <- c(500000,800000)
+yrange  <- c(5665000,6000000)
+xmin    <- min(xrange)
+xmax    <- max(xrange)
+ymin    <- min(yrange)
+ymax    <- max(yrange)
+
+
+list.files(inPath)
+iYs<- 2004:2018
+iY <- 2017
+iGs <- c('Gar','BkorG','Pkor','Bkor','Bor','Dreg','Ander')
+iG <- 'Gar'
+iMs<-1:12
+iM <- 9
+
+load(paste(inPath,'grd_',iY,'.RData',sep=''))
+
+the.var<-paste(iG,"surf",iM,sep="_")
+    v<-grd@data[,the.var]
+ grd.raster <- rasterFromXYZ(cbind(coordinates(grd),t(t(v))))  #Convert first two columns as lon-lat and 
+ 
+
+#definieer titel
+if(iG == 'Gar')    ititel <- 'garnalen'
+if(iG == 'BkorG')  ititel <- 'boomkorGroot'
+if(iG == 'Pkor')   ititel <- 'puls'
+if(iG == 'Bkor')   ititel <- 'boomkor'
+if(iG == 'Bor')    ititel <- 'borden'
+if(iG == 'Dreg')   ititel <- 'dreggen'
+if(iG == 'Anders') ititel <- 'overige'
+
+plot(grd.raster,xlim=c(xmin,xmax),ylim=c(ymin, ymax),xlab="",ylab="",las=1,
+       asp=1, main=paste(ititel,iY,sep=' '),
+       bty='n' )
+plot(eurPU, add=T,border="grey75",col="grey90")
+plot(DFS, add=T)
+plot(VD, add=T,border='blue',lwd=2)
+plot(BB, add=T,border='blue',lwd=2)
+box(lwd=2)
+
+```
+
+## Link survey data with environmental data
+
+Below the model data is linked to the explanatory variables.
+
+```{r extract, echo=TRUE, eval=T}
+      dat.s$slib <-extract(slibNL, dat.s[,c('x_utm','y_utm')])
+      dat.s$zand <-extract(zand, dat.s[,c('x_utm','y_utm')])
+      dat.s$dz10 <-extract(dz10, dat.s[,c('x_utm','y_utm')])
+      dat.s$dz60 <-extract(dz60, dat.s[,c('x_utm','y_utm')])
+      dat.s$tpi_3 <-extract(tpi_depth3, dat.s[,c('x_utm','y_utm')])
+      dat.s$tpi_9 <-extract(tpi_depth9, dat.s[,c('x_utm','y_utm')])
+      dat.s$tpi_15 <-extract(tpi_depth15, dat.s[,c('x_utm','y_utm')])
+      dat.s$depth <-extract(M.raster, dat.s[,c('x_utm','y_utm')])
+```
+
+For some data points the values for the environmental variables are missing. For "depth" we can simply use "water_depth" as measured during the survey. To check whether this is correct, we make a plot between these two.
+
+```{r water_depth_vs_depth, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=4, fig.height=4}
+
+plot(-dat.s$water_depth,dat.s$depth)    
+```
+For sediment, data is missing for the Wadden Sea and some part of the Delta area. To still allow the data to be used in the model, we create a new variable which indicates whether the sampling locations is located within the missing-data area, and we set the values for the sediment variables to 0. 
+
+```{r missing_1, echo=TRUE, eval=T}
+      dat.s$missing<-0
+      dat.s$missing[is.na(dat.s$slib)]<-1
+      dat.s$slib[is.na(dat.s$slib)]<-0
+      dat.s$zand[is.na(dat.s$zand)]<-0
+      dat.s$dz10[is.na(dat.s$dz10)]<-0
+      dat.s$dz60[is.na(dat.s$dz60)]<-0
+   
+```
+For the topographic position index it is set to tpi values of finer spatial scales when missing. E.g. When there is no data for tpi 15cells, we will use tpi of 9 cells. For the finest scale (i.e. tpi 3cells) we set it to the mean tpi value. This could be improved
+ 
+```{r missing_2, echo=TRUE, eval=T}
+      dat.s$missing<-0
+       dat.s$tpi_3[is.na(dat.s$tpi_3)]<-mean(dat.s$tpi_3,na.rm=TRUE)
+      dat.s$tpi_9[is.na(dat.s$tpi_9)] <-dat.s$tpi_3[is.na(dat.s$tpi_9)]
+      dat.s$tpi_15[is.na(dat.s$tpi_15)] <-dat.s$tpi_9[is.na(dat.s$tpi_15)]
+      summary(dat.s)
+```
