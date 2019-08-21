@@ -1,23 +1,78 @@
 library(vmstools);library(rgdal);library(raster);library(maptools);library(geosphere) #gebruik R 3.3.5 (nodig voor polygonICES)
 library(rgeos); library(RColorBrewer);library(GISTools)  
-the.year<-2014
+
 setwd("W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/")
-load(grd_2014.Rdata)
+
+load("grd_2014.Rdata")
+the.projection<-proj4string(grd)
+the.projection
 
 trllst<-read.csv("W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/DFS/dfs4pmr_trllst.csv")
 dat<-trllst
-dat$Longitude<-dat$longitude_s
-dat$Latitude<-dat$latitude_s
-temp <- dat
+
+empty.mat<-as.data.frame(matrix(NA,nrow=nrow(dat),ncol=length(names(grd))))
+names(empty.mat)<-names(grd)
+dat<-cbind(dat,empty.mat)
+  
+dat <- dat[!is.na(dat$longitude_s),]
+coordinates(dat) <- ~ longitude_s + latitude_s
+proj4string(dat) <- "+proj=longlat +datum=WGS84"
+dat <- spTransform(dat, the.projection)  ## UTM31
 
 
-temp <- temp[!is.na(temp$Longitude),]
-coordinates(temp) <- ~ Longitude + Latitude
-proj4string(temp) <- "+proj=longlat +datum=WGS84"
-temp <- spTransform(temp, CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"))  ## UTM31
+the.years<-c(2004:2018)
 
-covariates<- temp %over% grd
-summary(covariates)
+for (the.year in the.years){
+
+print(the.year)
+  
+load(paste("grd_",the.year,".Rdata",sep=""))
+
+covariates<- dat[dat$year==the.year,] %over% grd
+covariates[is.na(covariates)]<-0
+#summary(covariates)
+
+dat[dat$year==the.year,names(covariates)]<-covariates
+
+}
+
+
+# Check to see if projection is correct
+dat1 <- spTransform(dat, CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"))  ## UTM31
+dat2 <- spTransform(dat, CRS("+proj=utm +zone=31N +ellps=WGS84 +datum=WGS84 +units=m +no_defs"))  ## UTM31
+dat3 <- spTransform(dat, CRS("+init=EPSG:32631"))  ## UTM31
+head(coordinates(dat))
+head(coordinates(dat1))
+head(coordinates(dat2))
+head(coordinates(dat3))
+
+
+
+
+
+
+my_grid <- SpatialGrid(grd@grid, CRS("+init=EPSG:32631"))
+#my_grid <- SpatialGrid(grd@grid, CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"))
+
+
+temp@data$grid_id <- temp %over% my_grid
+table(temp@data$grid_id,useNA="always")
+
+## match VMS
+dat         <- temp@data
+dat$Bor_surf_8 <- grd@data$Bor_surf_8[dat$grid_id]  ## for example, match Bor_surf_8 column
+
+plot(dat$Bor_surf_8,covariates$Bor_surf_8)
+
+#plot(grd[74],xlim=c(551336.0,603563.5), ylim=c(5777040,5815024))
+plot(grd[74])
+plot(temp,add=TRUE)
+
+
+
+
+
+
 
 #range plot 
 xrange  <- c(500000,800000)
@@ -41,7 +96,12 @@ Color <- c('white',Color[2:9]) #9 kleuren
       legval   <- list(ALL = c("0",
                                "0 <= 0.5"  ,"0.5 <= 1.00"  ,"1.00 <= 5.00","5.00 <= 10","10 <= 20","20 <= 40" ,"40  <= 60 ",">60"))
                 
-                            
+                   
+      SQcol <- c(-1,0,c(0.3, 0.75, 1.5, 3, 7.5, 15, 30, 250))
+      legval   <- list(ALL = c("0",
+                               "0 <= 0.3"  ,"0.3 <= 0.75"  ,"0.75 <= 1.50","1.50 <= 3.00",
+                               "3.0 <= 7.5","7.50 <= 15" ,"15  <= 30 ",">30"))
+      
    #definieer de kleuren
     cols     <- Color[cut(grd@data[,which(names(grd@data) == 'Gar_surf_8')],breaks=SQcol)]
     
