@@ -6,15 +6,19 @@ There are two file types;
 - Trawl table, defining where, when and how trawling took place
 - Catch data, defining which species (and size) were caught
 
-The trawl list table is the one to be linked to environmental data, and can later be linked to fish data.
+The trawl list table is the one to be linked to environmental data, and can later be linked to the catch data.
 
-First the necessary libraries are loaded. 
+First the necessary file location 'paths' are specified.  
 
-```{r, echo=TRUE, warning=FALSE, message=FALSE}
+```{r, echo=TRUE}
 if (Sys.info()["nodename"]=="L0151542") {path<-"c:/github/CoastalFish/fish_book/data";
 env.path<-"C:/Users/aarts012/Dropbox/Seal_database/environmental";
-fish.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/DFS/"}
+fish.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/"}
+```
 
+Libraries are loaded
+
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
 library(INLA); library(fields); 
 library(mgcv)
 library(lattice); library(latticeExtra); library(grid); library(gridExtra);
@@ -29,7 +33,7 @@ library(RColorBrewer);library(GISTools)
 Next we load the trawl data and standardize it in a way that it can be used by a more the standardized R INLA protocol.
 
 ```{r trawlload, echo=TRUE}
-dat<-read.csv(file.path(fish.path,"dfs4pmr_trllst.csv"))
+dat<-read.csv(file.path(fish.path,"DFS/dfs4pmr_trllst.csv"))
 names(dat)<-tolower(names(dat))
 ```
 
@@ -59,7 +63,7 @@ All necessary columns are given a standard name, and utm coordinates are calcula
   dat$y_utm<-xy[,2]
  
 # Show data   
-  head(dat)
+  str(dat)
 ``` 
 
 
