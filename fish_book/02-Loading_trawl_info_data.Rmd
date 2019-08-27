@@ -13,7 +13,7 @@ First the necessary file location 'paths' are specified.
 ```{r, echo=TRUE}
 if (Sys.info()["nodename"]=="L0151542") {path<-"c:/github/CoastalFish/fish_book/data";
 env.path<-"C:/Users/aarts012/Dropbox/Seal_database/environmental";
-fish.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/"}
+PMR.data.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/"}
 ```
 
 Libraries are loaded
@@ -27,13 +27,15 @@ library(mapdata); library(maptools);
 library(raster);library(geosphere);
 library(spatialEco); library(rgeos); 
 library(RColorBrewer);library(GISTools)
+#library(vmstools); 
+library(GISTools)  
 
 ```
 
 Next we load the trawl data and standardize it in a way that it can be used by a more the standardized R INLA protocol.
 
 ```{r trawlload, echo=TRUE}
-dat<-read.csv(file.path(fish.path,"DFS/dfs4pmr_trllst.csv"))
+dat<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst.csv"))
 names(dat)<-tolower(names(dat))
 ```
 
@@ -50,6 +52,11 @@ dat$day_of_year<-as.numeric(difftime(dat$ddate,as.POSIXct(strptime(paste(dat$yea
 All necessary columns are given a standard name, and utm coordinates are calculated. All rows with no lat or lon coordinates are removed. 
 
 ```{r process_trawl, echo=TRUE}
+
+# Define common projection
+  common.projection<-"+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"
+  # Same as +init=epsg:32631
+
 # Change names
   names(dat)[names(dat) == 'latitude_s'] <- 'lat'
   names(dat)[names(dat) == 'longitude_s'] <- 'lon'
@@ -58,7 +65,7 @@ All necessary columns are given a standard name, and utm coordinates are calcula
   dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
 
 # Get utm coordinates  
-  xy<-project(cbind(dat$lon,dat$lat), "+init=epsg:32631")
+  xy<-project(cbind(dat$lon,dat$lat), common.projection)
   dat$x_utm<-xy[,1]
   dat$y_utm<-xy[,2]
  

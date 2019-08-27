@@ -7,27 +7,18 @@ Load land data
 land<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/WGS84/"),layer="WGS84geoKust500")
 projection(land)<-CRS("+proj=longlat +datum=WGS84")
 land.utm<-land
-land.utm <- spTransform(land,CRS("+init=epsg:32631"))
+land.utm <- spTransform(land,CRS(common.projection))
 ```
 
 Load Different regions
 
-```{r region read, echo=TRUE}
+```{r region_read, echo=TRUE, dpi=300, fig.width=8, fig.height=8}
 ICES<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/ICES_gebieden_V7_WGS84/"),layer="ICES_gebieden_V7_WGS84")
 ICES.utm<-ICES
-ICES.utm <- spTransform(ICES,CRS("+init=epsg:32631"))
+ICES.utm <- spTransform(ICES,common.projection)
 load(file=file.path(fish.path,"Environmental_variables/shapefiles/SHAPES.RDATA"))
-load(file=file.path(fish.path,"Environmental_variables/shapefiles/eurPols.Rdata"))
 
-BBVD<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/Bodembeschermingsgebied Voordelta/"),layer="DNZ_bodembeschermingsgebied")
-projection(BBVD)
-```
-
-#lees shapes in
-load(file=paste(shapePMR,"SHAPES.RDATA",sep=''))
-load(file=paste(shapeEuro,"eurPols.Rdata",sep=''))
-proj4string(eurPols)<-"+proj=longlat +ellps=WGS84"
-eurPU <- spTransform(eurPols,common.projection)
+ICES.utm.buffer           <- gBuffer(ICES.utm, F, width = 10000) # Sander used 20000
 
 proj4string(BB)<-"+proj=longlat +ellps=WGS84"
 BB  <- spTransform(BB, common.projection)
@@ -38,9 +29,40 @@ VD  <- spTransform(VD, common.projection)
 proj4string(VD.trans3)<-"+proj=longlat +ellps=WGS84"
 VD.trans3  <- spTransform(VD.trans3, common.projection)
 
-#DFS  <- readOGR(shapePath,layer="ICES_gebieden_V7_WGS84")
-DFS  <- readOGR(file.path(shapePath.x,"ICES_gebieden_V7_WGS84.shp"))
-DFS <- spTransform(DFS, common.projection)
+load(file=file.path(fish.path,"Environmental_variables/shapefiles/eurPols.Rdata"))
+
+BBVD<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/Bodembeschermingsgebied Voordelta/"),layer="DNZ_bodembeschermingsgebied")
+projection(BBVD)
+BBVD  <- spTransform(BBVD, common.projection)
+
+plot(VD.trans3,border="darkgreen",lwd=2)
+plot(land.utm,add=TRUE,col="beige")
+plot(VD,add=TRUE,border="green",lwd=2)
+plot(BB,add=TRUE,border="red",lwd=3)
+plot(BBVD,add=TRUE,border="orange",lty=3,lwd=2)
+plot(ICES.utm,add=TRUE,lty=2)
+plot(ICES.utm.buffer,add=TRUE,lty=3)
+box(lwd=2)
+
+
+```
+
+Data is overlayed with some shapefiles. This is e.g. needed for extracting the VMS data and differentating between NA and 0. 
+
+```{r shape_overlay, echo=TRUE, cache=TRUE, eval=T}
+
+      coordinates(dat)<-~x_utm + y_utm
+      projection(dat)<-CRS(common.projection)
+      
+      id<-over(dat,ICES.utm)
+      dat$in_ICES<-is.na(id$Area_code)==FALSE
+      id<-over(dat,ICES.utm.buffer)
+      dat$in_ICES_buffer<-is.na(id)==FALSE
+      id<-over(dat,BB)
+      dat$in_BB<-is.na(id$Id)==FALSE
+
+```
+
 
 
 ### Load depth data
@@ -130,105 +152,48 @@ Here we load and plot the Sediment data. These data are from 2007.
 # Create regular grid based on extremes of fish data
 par(mfrow=c(2,2),mai=c(0.1,0.1,0.2,0.2)) 
   slibNL<-raster(file.path(env.path,"sediment/NL/ascii/slib_juli2007.asc"))
-    projection(slibNL)<-CRS("+init=epsg:32631")
+    projection(slibNL)<-CRS(common.projection)
     plot(slibNL,xaxt="n",yaxt="n",main="slib")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
     zand<-raster(file.path(env.path,"sediment/NL/ascii/zand_afgeleid.asc"))
-    projection(zand)<-CRS("+init=epsg:32631")
+    projection(zand)<-CRS(common.projection)
     plot(zand,xaxt="n",yaxt="n",main="zand")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
     dz10<-raster(file.path(env.path,"sediment/NL/ascii/dz10_juli2007.asc"))
-    projection(dz10)<-CRS("+init=epsg:32631")
+    projection(dz10)<-CRS(common.projection)
     plot(dz10,xaxt="n",yaxt="n",main="dz10")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
     dz60<-raster(file.path(env.path,"sediment/NL/ascii/dz60_juli2007.asc"))
-    projection(dz60)<-CRS("+init=epsg:32631")
+    projection(dz60)<-CRS(common.projection)
     plot(dz60,xaxt="n",yaxt="n",main="dz60")
     plot(land.utm,add=TRUE,border="grey75",col="grey90")
     box()
     
 ```
 
+
+
 ### Load fisheries data
 
 Here we load and plot the Sediment data. These data are from 2007. 
 
-```{r fish data, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=8, fig.height=8}
+```{r VMS_data, echo=TRUE, cache=TRUE, eval=T}
 
-# Load fisheries data
-#  load("W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/grd_2004.Rdata")
-#definieer projection
-common.projection <- CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
-
-
-xy <- data.frame(c(3,4,5),c(51,53,55))
-xy<-SpatialPoints(xy)
-projection(xy)<-CRS("+proj=longlat +datum=WGS84")
-xy.d<-cbind(as.data.frame(xy),as.data.frame(spTransform(xy,CRS("+init=epsg:32631"))))
-xy.d<-cbind(xy.d,as.data.frame(spTransform(xy,CRS("+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"))))
-
-
-
-###############################
-#1. Folders
-inPath    <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/"
-
-shapePath.x <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/ICES_gebieden/ICES_gebieden_V7_WGS84/"
-
-shapePMR  <- "W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/VMS/Shapefiles/"
-shapeEuro <- shapePMR
-
-
-#lees shapes in
-load(file=paste(shapePMR,"SHAPES.RDATA",sep=''))
-load(file=paste(shapeEuro,"eurPols.Rdata",sep=''))
-proj4string(eurPols)<-"+proj=longlat +ellps=WGS84"
-eurPU <- spTransform(eurPols,common.projection)
-
-proj4string(BB)<-"+proj=longlat +ellps=WGS84"
-BB  <- spTransform(BB, common.projection)
-
-proj4string(VD)<-"+proj=longlat +ellps=WGS84"
-VD  <- spTransform(VD, common.projection)
-
-proj4string(VD.trans3)<-"+proj=longlat +ellps=WGS84"
-VD.trans3  <- spTransform(VD.trans3, common.projection)
-
-#DFS  <- readOGR(shapePath,layer="ICES_gebieden_V7_WGS84")
-DFS  <- readOGR(file.path(shapePath.x,"ICES_gebieden_V7_WGS84.shp"))
-DFS <- spTransform(DFS, common.projection)
-
-#range plot 
-xrange  <- c(500000,800000)
-yrange  <- c(5665000,6000000)
-xmin    <- min(xrange)
-xmax    <- max(xrange)
-ymin    <- min(yrange)
-ymax    <- max(yrange)
-
-
-list.files(inPath)
-iYs<- 2004:2018
-iY <- 2017
-iGs <- c('Gar','BkorG','Pkor','Bkor','Bor','Dreg','Ander')
-iG <- 'Gar'
-iMs<-1:12
-iM <- 9
-
-load(paste(inPath,'grd_',iY,'.RData',sep=''))
-
-the.var<-paste(iG,"surf",iM,sep="_")
-    v<-grd@data[,the.var]
- grd.raster <- rasterFromXYZ(cbind(coordinates(grd),t(t(v))))  #Convert first two columns as lon-lat and 
- 
+load(file.path(PMR.data.path,"VMS/grd_2014.Rdata"))
+#proj4string(grd)
+plot(VD.trans3,border="darkgreen",lwd=2)
+plot(dat,add=TRUE)
+plot(land.utm,col="beige",add=TRUE)
 
 #definieer titel
+
+iG=unlist(strsplit(names(grd)[79],"_"))[1]
 if(iG == 'Gar')    ititel <- 'garnalen'
 if(iG == 'BkorG')  ititel <- 'boomkorGroot'
 if(iG == 'Pkor')   ititel <- 'puls'
@@ -237,55 +202,224 @@ if(iG == 'Bor')    ititel <- 'borden'
 if(iG == 'Dreg')   ititel <- 'dreggen'
 if(iG == 'Anders') ititel <- 'overige'
 
-plot(grd.raster,xlim=c(xmin,xmax),ylim=c(ymin, ymax),xlab="",ylab="",las=1,
-       asp=1, main=paste(ititel,iY,sep=' '),
-       bty='n' )
-plot(eurPU, add=T,border="grey75",col="grey90")
-plot(DFS, add=T)
-plot(VD, add=T,border='blue',lwd=2)
-plot(BB, add=T,border='blue',lwd=2)
-box(lwd=2)
+#plot(grd[7],add=TRUE,main=ititel)
+#plot(grd[78],add=TRUE,main=ititel)
+
+empty.mat<-as.data.frame(matrix(NA,nrow=nrow(dat),ncol=length(names(grd))))
+names(empty.mat)<-names(grd)
+
+the.years<-c(2004:2018)
+
+for (the.year in the.years){
+
+print(the.year)
+  
+load(file.path(PMR.data.path,paste("VMS/grd_",the.year,".Rdata",sep="")))
+
+covariates<- dat[dat$year==the.year,] %over% grd
+covariates[is.na(covariates)]<-0
+
+
+empty.mat[dat$year==the.year,names(covariates)]<-covariates
+
+}
+empty.mat[is.na(empty.mat)]<-0
+empty.mat[dat$in_ICES_buffer==FALSE,]<-NA
+
+empty.mat$Gar_8_9<-empty.mat$Gar_surf_8+empty.mat$Gar_surf_9
+empty.mat$Pkor_8_9<-empty.mat$Pkor_surf_8+empty.mat$Pkor_surf_9
+empty.mat$Bkor_8_9<-empty.mat$Bkor_surf_8+empty.mat$Bkor_surf_9
+
+
+
+dat<-cbind(as.data.frame(dat),as.data.frame(empty.mat[,c("Gar_8_9","Pkor_8_9","Bkor_8_9")]))
+
+# Check w
 
 ```
+
 
 ## Link survey data with environmental data
 
 Below the model data is linked to the explanatory variables.
 
 ```{r extract, echo=TRUE, eval=T}
-      dat.s$slib <-extract(slibNL, dat.s[,c('x_utm','y_utm')])
-      dat.s$zand <-extract(zand, dat.s[,c('x_utm','y_utm')])
-      dat.s$dz10 <-extract(dz10, dat.s[,c('x_utm','y_utm')])
-      dat.s$dz60 <-extract(dz60, dat.s[,c('x_utm','y_utm')])
-      dat.s$tpi_3 <-extract(tpi_depth3, dat.s[,c('x_utm','y_utm')])
-      dat.s$tpi_9 <-extract(tpi_depth9, dat.s[,c('x_utm','y_utm')])
-      dat.s$tpi_15 <-extract(tpi_depth15, dat.s[,c('x_utm','y_utm')])
-      dat.s$depth <-extract(M.raster, dat.s[,c('x_utm','y_utm')])
+      dat$slib <-extract(slibNL, dat[,c('x_utm','y_utm')])
+      dat$zand <-extract(zand, dat[,c('x_utm','y_utm')])
+      dat$dz10 <-extract(dz10, dat[,c('x_utm','y_utm')])
+      dat$dz60 <-extract(dz60, dat[,c('x_utm','y_utm')])
+      dat$tpi_3 <-extract(tpi_depth3, dat[,c('x_utm','y_utm')])
+      dat$tpi_9 <-extract(tpi_depth9, dat[,c('x_utm','y_utm')])
+      dat$tpi_15 <-extract(tpi_depth15, dat[,c('x_utm','y_utm')])
+      dat$depth <-extract(M.raster, dat[,c('x_utm','y_utm')])
 ```
 
 For some data points the values for the environmental variables are missing. For "depth" we can simply use "water_depth" as measured during the survey. To check whether this is correct, we make a plot between these two.
 
 ```{r water_depth_vs_depth, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=4, fig.height=4}
 
-plot(-dat.s$water_depth,dat.s$depth)    
+plot(-dat$water_depth,dat$depth)    
 ```
 For sediment, data is missing for the Wadden Sea and some part of the Delta area. To still allow the data to be used in the model, we create a new variable which indicates whether the sampling locations is located within the missing-data area, and we set the values for the sediment variables to 0. 
 
 ```{r missing_1, echo=TRUE, eval=T}
-      dat.s$missing<-0
-      dat.s$missing[is.na(dat.s$slib)]<-1
-      dat.s$slib[is.na(dat.s$slib)]<-0
-      dat.s$zand[is.na(dat.s$zand)]<-0
-      dat.s$dz10[is.na(dat.s$dz10)]<-0
-      dat.s$dz60[is.na(dat.s$dz60)]<-0
+      dat$missing<-0
+      dat$missing[is.na(dat$slib)]<-1
+      dat$slib[is.na(dat$slib)]<-0
+      dat$zand[is.na(dat$zand)]<-0
+      dat$dz10[is.na(dat$dz10)]<-0
+      dat$dz60[is.na(dat$dz60)]<-0
    
 ```
 For the topographic position index it is set to tpi values of finer spatial scales when missing. E.g. When there is no data for tpi 15cells, we will use tpi of 9 cells. For the finest scale (i.e. tpi 3cells) we set it to the mean tpi value. This could be improved
  
 ```{r missing_2, echo=TRUE, eval=T}
-      dat.s$missing<-0
-       dat.s$tpi_3[is.na(dat.s$tpi_3)]<-mean(dat.s$tpi_3,na.rm=TRUE)
-      dat.s$tpi_9[is.na(dat.s$tpi_9)] <-dat.s$tpi_3[is.na(dat.s$tpi_9)]
-      dat.s$tpi_15[is.na(dat.s$tpi_15)] <-dat.s$tpi_9[is.na(dat.s$tpi_15)]
-      summary(dat.s)
+      dat$missing<-0
+       dat$tpi_3[is.na(dat$tpi_3)]<-mean(dat$tpi_3,na.rm=TRUE)
+      dat$tpi_9[is.na(dat$tpi_9)] <-dat$tpi_3[is.na(dat$tpi_9)]
+      dat$tpi_15[is.na(dat$tpi_15)] <-dat$tpi_9[is.na(dat$tpi_15)]
+      summary(dat)
+```
+
+### Load NET cdf files
+
+The .nc files are stored on the server. It appears that it is not possible to make a direct link with these .nc files, but it seems necessary to download these files first. The code below downloads all the files from the server. Only the files are selected where abiotiek$use0 == 1 in the abiotic_variable files.
+
+```{r download_NC, echo=TRUE, eval=T}
+
+# Load library
+  library(RCurl)
+
+# Define local path to store files
+  local.nc.path<-"D:/Deltares_NetCDF/"
+
+# Read file which specifies which files to read  
+  abiotiek<-read.csv(file.path(PMR.data.path,"Deltares/Abiotic_variables.csv"))
+
+# Loop through all the years  
+for (the.year in 2005:2018){
+  
+  # Show the year
+    print(the.year)
+
+  # Thefine the url location
+    url<- paste("http://pmr-geoserver.deltares.nl/thredds/fileServer/PMR-NCV/abiotiek/",the.year,"/",sep="")
+
+  # Define the files to read  
+    TF<-(abiotiek$use0==1)
+    files<-paste(abiotiek$parameter[TF],abiotiek$period[TF],
+                 abiotiek$layer10[TF],abiotiek$aggregation[TF],"_",
+                 the.year,abiotiek$veld[TF],".nc",sep="")
+    
+  # Loop through all the files  
+    for(i in seq_along(files)){
+      if (is.element(files[i],dir(local.nc.path))==FALSE)
+      try(download.file(paste(url,files[i],sep=""),
+                        destfile=file.path(local.nc.path,files[i]),quiet=FALSE,
+                        mode="wb", cacheOK = TRUE))}
+    
+}
+```
+
+
+```{r extract_NETcdf, echo=TRUE, eval=T}
+
+# Add columns to dat
+  the.rows<-which(abiotiek$use0==1)
+  the.year="xxxx"
+  files<-paste(abiotiek$parameter,abiotiek$period,abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")[the.rows]
+
+  empty.dat<-as.data.frame(matrix(NA,nrow=nrow(dat),ncol=length(files)))
+names(empty.dat)<-files
+
+  trllst<-cbind(trllst,empty.dat)
+# Extract files 
+for (the.year in 2004:2019)
+{
+  files<-paste(abiotiek$parameter,abiotiek$period,abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")
+  file<-files[j]
+  trllst.y<-trllst[trllst$year==the.year,]  
+
+  
+   
+  # open a NetCDF file
+  ncin <- nc_open(file)
+  print(ncin)
+  
+  #http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-netcdf-data-set-using-the-ncdf4-package
+  
+  
+  # get longitude and latitude
+  lon <- ncvar_get(ncin,"lon")
+  nlon <- dim(lon)
+  head(lon)
+  
+  lat <- ncvar_get(ncin,"lat")
+  nlat <- dim(lat)
+  head(lat)
+  
+  xy<-data.frame(lon=c(lon),lat=c(lat))
+  xy<-xytransform(table=xy,CRSold="+proj=longlat +datum=WGS84",CRSnew=epsg_rd_string,
+                  xold="lon",yold="lat",xnew="xrd",ynew="yrd")
+  xy$id<-1:nrow(xy)
+  xy<-xy[is.na(xy$lon)==FALSE,]
+  # fast nearest neighbour search
+  closest <- nn2(xy[,3:4],cbind(trllst.y$xrd,trllst.y$yrd),k = 1, searchtype = "radius", radius = 5000)
+  closest$nn.idx[closest$nn.idx==0]<-NA
+  trllst.y$layer.idx<-xy$id[closest$nn.idx]
+  trllst.y$layer.dist<-closest$nn.dists
+  
+  # get time
+  time <- ncvar_get(ncin,"time")
+  
+  ncatt_get(ncin,"time","units") # should be days since start of year
+ 
+  # get temperature
+  
+   dname=names(ncin$var)[6]
+  
+  tmp_array <- ncvar_get(ncin,dname)
+   fillvalue <- ncatt_get(ncin,dname,"_FillValue")
+  
+  # convert time -- split the time units string into fields
+  #tustr <- strsplit(tunits$value, " ")
+  #timestr <- unlist(strsplit(unlist(tustr)[4], "[+]"))
+  #datestr <- unlist(tustr)[3]
+  #ddates<-as.POSIXct(strptime(paste(datestr,timestr[1]),format="%Y-%m-%d %H:%M:%S",tz="UTC"))+time*24*60*60 + 60*60 # Time is UTC+1
+  
+  
+  # replace netCDF fill values with NA's
+  tmp_array[tmp_array==fillvalue$value] <- NA
+  
+for (i in 1:nrow(trllst.y))
+{
+ tdif<-trllst.y$day_of_year[i]-(time-1/24) # time = 0 is at UTC+1 (NL wintertime), day_of_year is at UTC, so substraction of 1 hour from time, results in UTC
+ nearest_layer<-which.min(abs(tdif))[1]
+ 
+ tdif<-(trllst.y$day_of_year[i]-7)-(time-1/24) # 7 days earlier
+ nearest_layer_7days<-which.min(abs(tdif))[1]
+ 
+ # get a single slice or layer (January)
+ if (length(dim(tmp_array)) ==3) {
+   m <- nearest_layer
+   m.7<-nearest_layer_7days
+   tmp_slice <- tmp_array[,,m.7:m]
+   }
+ 
+ 
+ means.along <- function(a, i) {
+   n <- length(dim(a))
+   b <- aperm(a, c(seq_len(n)[-i], i))
+   rowMeans(b, dims = n - 1)
+ }
+ tmp_slice<-means.along(tmp_slice,3)
+ 
+ trllst.y$value<-c(tmp_slice)[trllst.y$idx[i]]
+ 
+ 
+}
+  
+}
+ 
+}
 ```
