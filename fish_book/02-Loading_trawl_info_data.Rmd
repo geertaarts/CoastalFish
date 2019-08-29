@@ -28,7 +28,8 @@ library(raster);library(geosphere);
 library(spatialEco); library(rgeos); 
 library(RColorBrewer);library(GISTools)
 #library(vmstools); 
-library(GISTools)  
+library(GISTools) ;library(ncdf4); 
+library(RANN):
 
 ```
 
