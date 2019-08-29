@@ -321,46 +321,57 @@ for (the.year in 2005:2018){
 }
 ```
 
-
+More information on how to extract nc files, can be found here:
+http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-netcdf-data-set-using-the-ncdf4-package
+  
+  
 ```{r extract_NETcdf, echo=TRUE, eval=T}
 
 # Add columns to dat
   the.rows<-which(abiotiek$use0==1)
   the.year="xxxx"
-  files<-paste(abiotiek$parameter,abiotiek$period,abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")[the.rows]
+  the.col.names<-paste(abiotiek$parameter,abiotiek$period,
+                       abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")[the.rows]
 
+# Create empty matrix to store results  
   empty.dat<-as.data.frame(matrix(NA,nrow=nrow(dat),ncol=length(files)))
-names(empty.dat)<-files
+  names(empty.dat)<-the.col.names
 
-  trllst<-cbind(trllst,empty.dat)
+# Combine with trawl data  
+  dat<-cbind(dat,empty.dat)
+  
 # Extract files 
-for (the.year in 2004:2019)
+for (the.year in 2005:2018)
 {
-  files<-paste(abiotiek$parameter,abiotiek$period,abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")
-  file<-files[j]
-  trllst.y<-trllst[trllst$year==the.year,]  
+  
+  # Define the files for that year
+    files<-paste(abiotiek$parameter,abiotiek$period,
+                 abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")
+    files<-files[is.element(files,dir(local.nc.path))]
+  
+  # Select data from year
+    dat.y<-dat[dat$year==the.year,]  
 
+  # Loop through all the files
+    for (file in files){
+      
+    # open a NetCDF file
+      ncin <- nc_open(file.path(local.nc.path,file))
+      print(ncin)
+    
+    # Get longitude and latitue  
+      lon <- ncvar_get(ncin,"lon")
+      nlon <- dim(lon)
+      unique(na.omit(c(lon)))
   
-   
-  # open a NetCDF file
-  ncin <- nc_open(file)
-  print(ncin)
+      lat <- ncvar_get(ncin,"lat")
+      nlat <- dim(lat)
+      unique(na.omit(c(lat)))
   
-  #http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-netcdf-data-set-using-the-ncdf4-package
-  
-  
-  # get longitude and latitude
-  lon <- ncvar_get(ncin,"lon")
-  nlon <- dim(lon)
-  head(lon)
-  
-  lat <- ncvar_get(ncin,"lat")
-  nlat <- dim(lat)
-  head(lat)
-  
+    # Transform to utm coordinates  
   xy<-data.frame(lon=c(lon),lat=c(lat))
-  xy<-xytransform(table=xy,CRSold="+proj=longlat +datum=WGS84",CRSnew=epsg_rd_string,
-                  xold="lon",yold="lat",xnew="xrd",ynew="yrd")
+  xy<-xytransform(table=xy,CRSold="+proj=longlat +datum=WGS84",CRSnew=common.projection,
+                  xold="lon",yold="lat",xnew="xutm",ynew="yutm")
   xy$id<-1:nrow(xy)
   xy<-xy[is.na(xy$lon)==FALSE,]
   # fast nearest neighbour search
