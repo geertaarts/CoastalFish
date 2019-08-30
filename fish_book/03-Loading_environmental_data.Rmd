@@ -3,6 +3,7 @@
 ### Load land data and shapefiles of different regions
 
 Load land data
+
 ```{r landread, echo=TRUE}
 land<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/WGS84/"),layer="WGS84geoKust500")
 projection(land)<-CRS("+proj=longlat +datum=WGS84")
@@ -325,7 +326,10 @@ More information on how to extract nc files, can be found here:
 http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-netcdf-data-set-using-the-ncdf4-package
   
   
-```{r extract_NETcdf, echo=TRUE, eval=T}
+```{r extract_NETcdf, echo=TRUE, eval=T, dpi=300, fig.width=7, fig.height=7}
+
+# The extraction is only ran for all years of the trawl data with environmental data is not existing
+  the.years<-ifelse(is.element("dfs4pmr_trllst_ENV.csv", dir(file.path(PMR.data.path,"DFS"))),2005,2005:2018)
 
 # Add columns to dat
   the.rows<-which(abiotiek$use0==1)
@@ -334,105 +338,150 @@ http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-ne
                        abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")[the.rows]
 
 # Create empty matrix to store results  
-  empty.dat<-as.data.frame(matrix(NA,nrow=nrow(dat),ncol=length(files)))
-  names(empty.dat)<-the.col.names
+  empty.dat<-as.data.frame(matrix(NA,nrow=nrow(dat),ncol=length(the.col.names)*2))
+  names(empty.dat)<-c(the.col.names,paste(the.col.names,"7d",sep="_"))
 
 # Combine with trawl data  
   dat<-cbind(dat,empty.dat)
   
 # Extract files 
-for (the.year in 2005:2018)
+#for (the.year in 2005:2018)
+for (the.year in the.years)
 {
   
   # Define the files for that year
     files<-paste(abiotiek$parameter,abiotiek$period,
-                 abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")
-    files<-files[is.element(files,dir(local.nc.path))]
+                 abiotiek$layer10,abiotiek$aggregation,"_",the.year,abiotiek$veld,".nc",sep="")[the.rows]
   
   # Select data from year
     dat.y<-dat[dat$year==the.year,]  
 
   # Loop through all the files
-    for (file in files){
+    for (j in 1:length(files)){
+    #for (j in 1:10){
       
+    # Define the file and column name
+      print(file<-files[j])
+      the.col.name<-the.col.names[j]
+      the.col.name.7d<-paste(the.col.name,"7d",sep="_")
+      
+    # Only run if files exist
+      if (is.element(file,dir(local.nc.path))){
+  
     # open a NetCDF file
       ncin <- nc_open(file.path(local.nc.path,file))
-      print(ncin)
+      #print(ncin)
     
     # Get longitude and latitue  
       lon <- ncvar_get(ncin,"lon")
       nlon <- dim(lon)
-      unique(na.omit(c(lon)))
+      #unique(na.omit(c(lon)))
   
       lat <- ncvar_get(ncin,"lat")
       nlat <- dim(lat)
-      unique(na.omit(c(lat)))
+      #unique(na.omit(c(lat)))
   
     # Transform to utm coordinates  
       xy<-data.frame(lon=c(lon),lat=c(lat))
-      xy<-xytransform(table=xy,CRSold="+proj=longlat +datum=WGS84",CRSnew=common.projection,
-                      xold="lon",yold="lat",xnew="x_utm",ynew="y_utm")
-      xy$id<-1:nrow(xy)
-      xy<-xy[is.na(xy$lon)==FALSE,]
-  
+      xy$id<-1:nrow(xy) #important to have this year, before na remove
+      No.NAs<-which(is.na(xy$lon)==FALSE & is.na(xy$lat)==FALSE)
+      xy<-xy[No.NAs,]
+      xy$x_utm<-xy$lon; xy$y_utm<-xy$lat
+      coordinates(xy)<-~x_utm + y_utm
+      projection(xy)<-CRS("+proj=longlat +datum=WGS84")
+      xy <- as.data.frame(spTransform(xy,CRS(common.projection)))
+      
     # fast nearest neighbour search
-      closest <- nn2(xy[,3:4],cbind(dat.y$x_utm,dat.y$y_utm),k = 1, searchtype = "radius", 
+      closest <- nn2(xy[,c("x_utm","y_utm")],cbind(dat.y$x_utm,dat.y$y_utm),k = 1, searchtype = "radius", 
                      radius = 5000)
       closest$nn.idx[closest$nn.idx==0]<-NA
-      dat$layer.idx<-xy$id[closest$nn.idx]
-      dat$layer.dist<-closest$nn.dists
+      dat.y$layer.idx<-xy$id[closest$nn.idx]
+      dat.y$layer.dist<-closest$nn.dists
       
-  # get time
-  time <- ncvar_get(ncin,"time")
+    # get time
+      time <- ncvar_get(ncin,"time")
+      ncatt_get(ncin,"time","units") # should be days since start of year
+ 
+    # get variable of interest
+      dname=names(ncin$var)[6]
+      tmp_array <- ncvar_get(ncin,dname)
+      
+    # replace netCDF fill values with NA's
+      fillvalue <- ncatt_get(ncin,dname,"_FillValue")
+      tmp_array[tmp_array==fillvalue$value] <- NA
   
-  ncatt_get(ncin,"time","units") # should be days since start of year
+    # Do extraction for all values if there is only one map/layer
+      if (length(dim(tmp_array))==2) {
+        # Get value
+          dat[dat$year==the.year,][,the.col.name]<-c(tmp_array)[dat.y$layer.idx]
+      
+        # Make plot (only once) 
+          if (the.year==2005) {
+          kleur<-c(as.numeric(tmp_array))[No.NAs]
+          kleur<-rainbow(120)[round(100*(kleur-min(kleur,na.rm=TRUE))/(diff(range(kleur,na.rm=TRUE))))+1]
+          coordinates(xy)<-~lon + lat
+          plot(xy,col=kleur,pch=20,cex=0.5,main=file)
+          plot(land,add=TRUE)
+           }}
+
+    # Do extraction by time if there are muliple layers
+      if (length(dim(tmp_array))==3) {
  
-  # get temperature
-  
-   dname=names(ncin$var)[6]
-  
-  tmp_array <- ncvar_get(ncin,dname)
-   fillvalue <- ncatt_get(ncin,dname,"_FillValue")
-  
-  # convert time -- split the time units string into fields
-  #tustr <- strsplit(tunits$value, " ")
-  #timestr <- unlist(strsplit(unlist(tustr)[4], "[+]"))
-  #datestr <- unlist(tustr)[3]
-  #ddates<-as.POSIXct(strptime(paste(datestr,timestr[1]),format="%Y-%m-%d %H:%M:%S",tz="UTC"))+time*24*60*60 + 60*60 # Time is UTC+1
-  
-  
-  # replace netCDF fill values with NA's
-  tmp_array[tmp_array==fillvalue$value] <- NA
-  
-for (i in 1:nrow(trllst.y))
-{
- tdif<-trllst.y$day_of_year[i]-(time-1/24) # time = 0 is at UTC+1 (NL wintertime), day_of_year is at UTC, so substraction of 1 hour from time, results in UTC
- nearest_layer<-which.min(abs(tdif))[1]
- 
- tdif<-(trllst.y$day_of_year[i]-7)-(time-1/24) # 7 days earlier
- nearest_layer_7days<-which.min(abs(tdif))[1]
- 
- # get a single slice or layer (January)
- if (length(dim(tmp_array)) ==3) {
-   m <- nearest_layer
-   m.7<-nearest_layer_7days
-   tmp_slice <- tmp_array[,,m.7:m]
-   }
- 
- 
- means.along <- function(a, i) {
-   n <- length(dim(a))
-   b <- aperm(a, c(seq_len(n)[-i], i))
-   rowMeans(b, dims = n - 1)
- }
- tmp_slice<-means.along(tmp_slice,3)
- 
- trllst.y$value<-c(tmp_slice)[trllst.y$idx[i]]
- 
- 
+    # Loop through all rows of trawl data  
+    for (i in 1:nrow(dat.y))
+    {
+       # Calculate time difference
+         tdif<-dat.y$day_of_year[i]-(time-1/24) # time = 0 is at UTC+1 (NL wintertime), 
+                                                # day_of_year is at UTC, 
+                                                # so substraction of 1 hour from time, results in UTC
+         nearest_layer<-which.min(abs(tdif))[1]
+         
+         tdif<-(dat.y$day_of_year[i]-7)-(time-1/24) # 7 days earlier
+         nearest_layer_7days<-which.min(abs(tdif))[1]
+     
+     # Select relevant slices
+       m <- nearest_layer
+       m.7<-max(1,nearest_layer_7days)
+       tmp_slice <- tmp_array[,,m.7:m]
+
+     # Function to get rowMeans if multidimensional array       
+       means.along <- function(a, i) {
+         n <- length(dim(a))
+         b <- aperm(a, c(seq_len(n)[-i], i))
+         rowMeans(b, dims = n - 1, na.rm=TRUE)
+       }
+       
+     # Calculate mean over all slices   
+       tmp_slice<-means.along(tmp_slice,3)
+     
+     # Make plot (only once) 
+       if (the.year==2005 & i==1) {
+          kleur<-c(as.numeric(tmp_slice))[No.NAs]
+          kleur<-rainbow(120)[round(100*(kleur-min(kleur,na.rm=TRUE))/(diff(range(kleur,na.rm=TRUE))))+1]
+          coordinates(xy)<-~lon + lat
+          plot(xy,col=kleur,pch=20,cex=0.5,main=file)
+          plot(land,add=TRUE)
+          }
+          
+
+     # Get value   
+       dat[dat$year==the.year,][i,the.col.name.7d]<-c(tmp_slice)[dat.y$layer.idx[i]]
+      
+     # Get value at moment of survey
+       tmp_slice <- tmp_array[,,m]
+       dat[dat$year==the.year,][i,the.col.name]<-c(tmp_slice)[dat.y$layer.idx[i]]
+     
+       }
+    }
+  }
+    }
 }
-  
-}
- 
-}
+```
+
+Finally the table is saved
+
+```{r write_trawl_list, echo=TRUE, eval=T}
+
+if (length(the.years)>1)  write.csv(dat,file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV.csv"))   
+
 ```

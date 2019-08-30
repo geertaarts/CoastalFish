@@ -29,7 +29,7 @@ library(spatialEco); library(rgeos);
 library(RColorBrewer);library(GISTools)
 #library(vmstools); 
 library(GISTools) ;library(ncdf4); 
-library(RANN):
+library(RANN);
 
 ```
 
