@@ -329,7 +329,9 @@ http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-ne
 ```{r extract_NETcdf, echo=TRUE, eval=T, dpi=300, fig.width=7, fig.height=7}
 
 # The extraction is only ran for all years of the trawl data with environmental data is not existing
-  the.years<-ifelse(is.element("dfs4pmr_trllst_ENV.csv", dir(file.path(PMR.data.path,"DFS"))),2005,2005:2018)
+  TF<-is.element("dfs4pmr_trllst_ENV.csv", dir(file.path(PMR.data.path,"DFS")))  
+  if (TF==TRUE) the.years<-2005  
+  if (TF==FALSE) the.years<-2005:2017 # missing data 2018  
 
 # Add columns to dat
   the.rows<-which(abiotiek$use0==1)
@@ -415,7 +417,7 @@ for (the.year in the.years)
         # Get value
           dat[dat$year==the.year,][,the.col.name]<-c(tmp_array)[dat.y$layer.idx]
       
-        # Make plot (only once) 
+        # Make plot (only once (for year 2005))
           if (the.year==2005) {
           kleur<-c(as.numeric(tmp_array))[No.NAs]
           kleur<-rainbow(120)[round(100*(kleur-min(kleur,na.rm=TRUE))/(diff(range(kleur,na.rm=TRUE))))+1]
@@ -453,7 +455,8 @@ for (the.year in the.years)
        
      # Calculate mean over all slices   
        tmp_slice<-means.along(tmp_slice,3)
-     
+       #if (length(dim(tmp_slice))>2) tmp_slice<-means.along(tmp_slice,3)
+      
      # Make plot (only once) 
        if (the.year==2005 & i==1) {
           kleur<-c(as.numeric(tmp_slice))[No.NAs]
