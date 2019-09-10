@@ -258,8 +258,9 @@ Below the model data is linked to the explanatory variables.
 For some data points the values for the environmental variables are missing. For "depth" we can simply use "water_depth" as measured during the survey. To check whether this is correct, we make a plot between these two.
 
 ```{r water_depth_vs_depth, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=4, fig.height=4}
-
-plot(-dat$water_depth,dat$depth)    
+dat$water_depth[dat$water_depth>100]<-NA
+plot(-dat$water_depth,dat$depth,pch=20,col=rgb(0,0,0,0.5),cex=0.3)  
+dat$water_depth[is.na(dat$water_depth)]<--dat$depth[is.na(dat$water_depth)]
 ```
 For sediment, data is missing for the Wadden Sea and some part of the Delta area. To still allow the data to be used in the model, we create a new variable which indicates whether the sampling locations is located within the missing-data area, and we set the values for the sediment variables to 0. 
 

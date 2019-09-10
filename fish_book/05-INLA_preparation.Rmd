@@ -6,9 +6,9 @@ When making a mesh the study area is divided into a large number of non-overlapp
 
 First, UTM coordinates of the data set are combined into a data frame. That data frame will be used later to generate spatial meshes for the data. 
 ```{r, eval=T, echo=TRUE}
-dat.s$x_utm_km<-dat.s$x_utm/1000
-dat.s$y_utm_km<-dat.s$y_utm/1000
-Loc <- cbind(dat.s$x_utm_km, dat.s$y_utm_km) #km
+dat$x_utm_km<-dat$x_utm/1000
+dat$y_utm_km<-dat$y_utm/1000
+Loc <- cbind(dat$x_utm_km, dat$y_utm_km) #km
 ```
 
 Before creating the mesh we need a boundary for it: we do not want our spatial correlations to pass landmasses (e.g. Denmark). The boundary is made using a nonconvex hull of the data points, with function inla.nonconvex.hull(). This convex hull is used as a boundary for making a 2d mesh. 
@@ -86,7 +86,7 @@ Because of the link function of the Poisson and negative binomial that we will b
 
 Note that in code below the names in the model matrix should not contain any special characters! 
 ```{r, eval=T, echo=T}
-Xmatrix <- model.matrix(~ water_depth + slib + dz10 + dz60 + tpi_3 + tpi_15 + missing + the.offset, data=dat.s)
+Xmatrix <- model.matrix(~ poly(water_depth,4) + poly(slib,4) + poly(dz10,4) + poly(dz60,4) + poly(tpi_3,4) + poly(tpi_15,4) + missing + the.offset, data=dat)
 head(Xmatrix)
 ```
 
@@ -96,11 +96,14 @@ This Xmatrix contains the model matrix with the fixed effects, including the int
 ```{r, eval=T, echo=T}
 X <- as.data.frame(Xmatrix[,-1])
 names(X) <- c(gsub("[:]",".",names(X)))
+names(X) <- c(gsub("[(]","_",names(X)))
+names(X) <- c(gsub("[, 4]","",names(X)))
+names(X) <- c(gsub("[)]","_",names(X)))
 head(X)
-N <- nrow(dat.s)
+N <- nrow(dat)
 Stack1 <- inla.stack(
   tag  = "Fit",
-  data = list(y = dat.s$count),    
+  data = list(y = dat$count),    
   A    = list(1,1, A1),         
   effects = list( 
     Intercept=rep(1,N),

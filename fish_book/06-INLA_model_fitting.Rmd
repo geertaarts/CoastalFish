@@ -8,7 +8,8 @@ Subsequently, two inla models are run, one assuming that the data are Poisson di
 
 
 ```{r, eval=T, results='hide', echo=T, message=FALSE, warning=FALSE}
-fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
+#fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
+fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"][1:5],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
 INLA:::inla.dynload.workaround() 
 I1p <- inla(eval(fsp), family = "poisson", data=inla.stack.data(Stack1),
             control.compute = list(dic = TRUE, waic = TRUE),

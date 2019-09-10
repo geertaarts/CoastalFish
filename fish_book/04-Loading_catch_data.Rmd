@@ -6,6 +6,7 @@
 ```{r trawl_data, echo=TRUE, eval=T}
 
 trawl<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV.csv"))   
+trawl$water_depth[is.na(trawl$water_depth)]<--trawl$depth[is.na(trawl$water_depth)]
 
 ```
 
@@ -19,7 +20,7 @@ catch<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_catch.csv"))
 
 Define the species
 
-```{r load_catch_data, echo=TRUE, eval=T}
+```{r define species, echo=TRUE, eval=T}
 the.species<-"Pleuronectes platessa"
 the.age<-1
 ```
@@ -68,7 +69,7 @@ catch<-catch[is.element(catch$sampleID,trawl_list),]
 n1-nrow(catch)
 ```
 
-```{r load_length_at_age, echo=TRUE, eval=T}
+```{r select species, echo=TRUE, eval=T}
 catch<-catch[catch$SCIENTIFIC_NAME==the.species,]
 ```
 
@@ -115,15 +116,21 @@ catch$age1.p<-la$a1.plus[match(catch$lclass.near,la$class)]
   tapply.offset<-tapply.n/tapply.na
 
 trawl$counts<-as.numeric(tapply.n[match(trawl$sampleID,names(tapply.n))])
-trawl$offset<-as.numeric(tapply.offset[match(trawl$sampleID,names(tapply.offset))])
+trawl$the.offset<-as.numeric(tapply.offset[match(trawl$sampleID,names(tapply.offset))])
 trawl$NatA<-as.numeric(tapply.na[match(trawl$sampleID,names(tapply.na))])
 
-trawl$offset[trawl$offset=="Inf" | is.na(trawl$offset)]<-1
+trawl$the.offset[trawl$the.offset=="Inf" | is.na(trawl$the.offset)]<-1
+trawl$the.offet<-log(trawl$the.offset)
 trawl$counts[is.na(trawl$counts)]<-0
 
 
 ```
 
+Finally we remove data from Denmark and Germany
+
+```{r, eval=T, echo=TRUE}
+trawl<-trawl[is.element(trawl$pmr_area_code,c("WaddenkustDE","WaddenkustDK"))==FALSE,]
+```
 
 Plot the counts
 
@@ -137,6 +144,11 @@ plot(land,add=TRUE,border="grey75",col="grey90")
 box()
 ```
 
+Finally we rename trawl to dat
+
+```{r, eval=T, echo=TRUE}
+dat<-trawl
+```
 
 ### recategorize into eco groups
 spe_group$SCIENTIFIC_NAME <- as.character(spe_group$SCIENTIFIC_NAME)
