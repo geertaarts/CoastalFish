@@ -8,6 +8,7 @@
 trawl<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV.csv"))   
 trawl$water_depth[is.na(trawl$water_depth)]<--trawl$depth[is.na(trawl$water_depth)]
 
+
 ```
 
 ### Load catch data
