@@ -111,7 +111,7 @@ catch$age1.p<-la$a1.plus[match(catch$lclass.near,la$class)]
   
 # Calculate the corrected (sub sampling factor) number per age
   if (the.age==0) tapply.na<-tapply(catch$number*catch$age0.p,catch$sampleID,sum) # 
-  if (the.age==1) tapply.na<-tapply(catch$number*catch$age0.p,catch$sampleID,sum) # 
+  if (the.age==1) tapply.na<-tapply(catch$number*catch$age1.p,catch$sampleID,sum) # 
 
 # Calculate the offset, which is the ratio between raw counts and corrected counts
   tapply.offset<-tapply.n/tapply.na
