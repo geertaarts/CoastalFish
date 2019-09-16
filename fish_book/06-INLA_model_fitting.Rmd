@@ -2,6 +2,53 @@
 
 ## Making the model formula and running the INLA model
 
+For the moment a model is fitted to data from the last 5 years up to 2017 (i.e. 2013-2017). These data are subsequently divided into a model data set and a validation data set. 
+
+```{r, eval=T, echo=T}
+the.rows<-which(dat$year>=2013 & dat$year<=2017)
+dat.s<-dat[the.rows,]
+Loc.s<-Loc[the.rows,]
+X.s<-X[the.rows,]
+
+set.seed(1)
+n_fit_size <- floor(0.90 * nrow(dat.s))
+
+fit_ind <- sample(seq_len(nrow(dat.s)), size = n_fit_size)
+
+A1 <- inla.spde.make.A(mesh = mesh1c, loc=Loc.s[fit_ind,])
+
+A2 <- inla.spde.make.A(mesh = mesh1c, loc=Loc.s[-fit_ind,])
+
+
+
+N <- n_fit_size
+Stack1 <- inla.stack(
+  tag  = "Fit",
+  data = list(y = dat.s$count[fit_ind],e=dat.s$the.offet[fit_ind]),    
+  A    = list(1,1, A1),         
+  effects = list( 
+    Intercept=rep(1,N),
+    X=X.s[fit_ind,], #Covariates
+    w=w.st))                  #Spatial field
+
+N <- nrow(dat.s)-n_fit_size
+Stack2 <- inla.stack(
+  tag  = "pred",
+  data = list(y = NA,e=dat.s$the.offet[-fit_ind]),    
+  A    = list(1,1, A2),         
+  effects = list( 
+    Intercept=rep(1,N),
+    X=X.s[-fit_ind,], #Covariates
+    w=w.st))                  #Spatial field
+
+stk.full <- inla.stack(Stack1,Stack2)
+
+```
+
+p.res <- inla(formula, data=inla.stack.data(stk.full), ## full stack
+control.predictor=list(compute=TRUE, ## compute the predictor
+A=inla.stack.A(stk.full))) ## using full st
+
 The model formula used in the inla model is generated from the names of the model matrix, combined with the intercept term and the spatial correlation model ("f(w, model=spde)").
 
 Subsequently, two inla models are run, one assuming that the data are Poisson distributed, and another model assuming that the data are negative binomial distributed.
@@ -11,6 +58,40 @@ Subsequently, two inla models are run, one assuming that the data are Poisson di
 #fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
 fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"][1:5],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
 INLA:::inla.dynload.workaround() 
+
+
+
+I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(stk.full),
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),
+             control.predictor = list(A = inla.stack.A(stk.full)))
+
+
+
+ sum(I1nb$dic$local.dic)
+sum(I1nb$dic$local.dic[fit_ind])
+sum(I1nb$dic$local.dic[-fit_ind])
+ I1nb$dic$dic
+
+pred.ind <- inla.stack.index(stk.full, tag = "pred")$data
+ypost <- I1nb$marginals.fitted.values[pred.ind]
+
+x<-c()
+for(i in 1:length(ypost)){
+  
+  x<-c(x,ypost[[i]][,"x"][which(ypost[[i]][,"y"]==max(ypost[[i]][,"y"]))[1]])
+  
+}
+plot(dat.s$count[-fit_ind],x)
+
+
+fsp.2 <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"][1:5]," f(w, model = spde)"),collapse =" + ")))
+
+I1nb.2 <- inla(eval(fsp.2), family = "nbinomial", data=inla.stack.data(stk.full),
+             E=inla.stack.data(stk.full)$e,
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),
+             control.predictor = list(A = inla.stack.A(Stack1)))
+
+
 I1p <- inla(eval(fsp), family = "poisson", data=inla.stack.data(Stack1),
             control.compute = list(dic = TRUE, waic = TRUE),
             control.predictor = list(A = inla.stack.A(Stack1)))

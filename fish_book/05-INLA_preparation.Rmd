@@ -90,7 +90,7 @@ Xmatrix <- model.matrix(~ poly(water_depth,4) + poly(slib,4) + poly(dz10,4) + po
 head(Xmatrix)
 ```
 
-This Xmatrix contains the model matrix with the fixed effects, including the intercept (The column for the intercept is named "(Intercept)", and it is 1 for all observations). However, in the next step the intercept is removed from the model matrix. The intercept is then included when making the stack, and named "Intercept" (without brackets).
+This Xmatrix contains the model matrix with the fixed effects, including the intercept (The column for the intercept is named "(Intercept)", and it is 1 for all observations). However, in the next step the intercept is removed from the model matrix. The intercept is later included when making the stack, and named "Intercept" (without brackets).
 
 
 ```{r, eval=T, echo=T}
@@ -100,15 +100,6 @@ names(X) <- c(gsub("[(]","_",names(X)))
 names(X) <- c(gsub("[, 4]","",names(X)))
 names(X) <- c(gsub("[)]","_",names(X)))
 head(X)
-N <- nrow(dat)
-Stack1 <- inla.stack(
-  tag  = "Fit",
-  data = list(y = dat$count),    
-  A    = list(1,1, A1),         
-  effects = list( 
-    Intercept=rep(1,N),
-    X=X, #Covariates
-    w=w.st))                  #Spatial field
 ```
 
 Save the workspace
