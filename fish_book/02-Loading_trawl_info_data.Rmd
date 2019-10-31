@@ -29,7 +29,7 @@ library(spatialEco); library(rgeos);
 library(RColorBrewer);library(GISTools)
 #library(vmstools); 
 library(GISTools) ;library(ncdf4); 
-library(RANN);
+library(RANN); library(plyr)
 
 ```
 
@@ -74,5 +74,37 @@ All necessary columns are given a standard name, and utm coordinates are calcula
   str(dat)
 ``` 
 
+```{r create regular grid, echo=TRUE}
 
+# Create buffer around trawl locations
+  coordinates(dat)<-~x_utm + y_utm
+  dat.buffer<- gBuffer(dat, F, width = 10000) 
+  plot(dat.buffer)
+
+# Create regular grid  
+  xy<-expand.grid(x_utm=seq(from=min(dat$x_utm),to=max(dat$x_utm),by=1000),
+                  y_utm=seq(from=min(dat$y_utm),to=max(dat$y_utm),by=1000))
+  coordinates(xy)<-~x_utm + y_utm
+  
+# Only use regular grid points within buffer    
+  xy$within<-over(xy, dat.buffer , fn = NULL) 
+  xy<-xy[is.na(xy$within)==FALSE,]
+  plot(xy,add=TRUE,col="grey")
+
+# Get latlon
+  latlon<-xy
+  proj4string(latlon)<-common.projection
+  latlon<-as.data.frame(coordinates(spTransform(latlon,CRS("+proj=longlat +ellps=WGS84"))))
+  names(latlon)<-c("lon","lat")
+  
+# Combine with xy
+  xy<-cbind(as.data.frame(xy),latlon)
+  
+# Get year 2018
+  xy$year<-2018
+  
+# Combine regular grid with trawl data  
+  dat<-rbind.fill(as.data.frame(dat),xy)
+  
+``` 
 

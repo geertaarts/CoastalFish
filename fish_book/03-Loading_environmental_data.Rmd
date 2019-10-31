@@ -486,6 +486,6 @@ Finally the table is saved
 
 ```{r write_trawl_list, echo=TRUE, eval=T}
 
-if (length(the.years)>1)  write.csv(dat,file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV.csv"))   
+if (length(the.years)>1)  write.csv(dat,file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV_xy.csv"))   
 
 ```

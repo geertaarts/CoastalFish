@@ -1,28 +1,6 @@
 #INLA DATA PREPARATION
 
-## Load libraries
-```{r, echo=TRUE, warning=FALSE, message=FALSE}
-library(INLA); library(fields); 
-library(mgcv)
-library(lattice); library(latticeExtra); library(grid); library(gridExtra);
-library(rgdal); library(rgeos); 
-library(mapdata); library(maptools);
-library(raster);library(geosphere);
-library(spatialEco); library(rgeos); 
-library(RColorBrewer);library(GISTools)
-#library(vmstools); 
-library(GISTools) ;library(ncdf4); 
-library(RANN);
-
-```
-
 ## Define the explanatory environmental variables
-
-First we only select data from 2013 tot en met 2017 (so 5 years)
-
-```{r, eval=T, echo=TRUE}
-dat<-dat[dat$year>=2013 & dat$year<=2018,]
-```
 
 Here a table is created containing all the explanatory variables, whether they are continous or factor variables, and the number of splines used for each explanatory variable.
 
@@ -30,15 +8,15 @@ Here a table is created containing all the explanatory variables, whether they a
 Expl.Var<-data.frame(X=c("day_of_year","year","Gar_8_9","Pkor_8_9",
                          "Bkor_8_9","slib","zand","dz10",
                          "dz60","tpi_3","tpi_9","tpi_15",
-                         "depth","wind_force"),
+                         "depth","wind_force","missing"),
                      type=c("continuous","factor","continuous","continuous",
                             "continuous","continuous","continuous","continuous",
                             "continuous","continuous","continuous","continuous",
-                            "continuous","continuous"),
+                            "continuous","continuous","factor"),
                      nsplines=c(4,0,4,4,
                                 4,4,4,4,
                                 4,4,4,4,
-                                4,4))
+                                4,4,0))
 ```
 
 
@@ -47,13 +25,6 @@ Expl.Var<-data.frame(X=c("day_of_year","year","Gar_8_9","Pkor_8_9",
 When making a mesh the study area is divided into a large number of non-overlapping triangles (Zuur et al. 2017). This mesh is used to estimated the spatial correlation in the data.
 
 First, UTM coordinates of the data set are combined into a data frame. That data frame will be used later to generate spatial meshes for the data. 
-
-```{r, eval=T, echo=TRUE}
-Expl.Var$X<-as.character(Expl.Var$X)
-dat<-dat[which(complete.cases(dat[,Expl.Var$X])),]
-```
-
-
 ```{r, eval=T, echo=TRUE}
 dat$x_utm_km<-dat$x_utm/1000
 dat$y_utm_km<-dat$y_utm/1000
@@ -137,8 +108,6 @@ Note that in code below the names in the model matrix should not contain any spe
 ```{r, eval=T, echo=T}
 
 Expl.Var$X<-as.character(Expl.Var$X)
-dat<-dat[which(complete.cases(dat[,Expl.Var$X])),]
-
 TF<-which(Expl.Var$type=="continuous")
 continous<-paste("poly(",Expl.Var$X[TF],",",Expl.Var$nsplines[TF],")",sep="")
 TF<-which(Expl.Var$type=="factor")
@@ -146,8 +115,10 @@ factor<-paste("factor(",Expl.Var$X[TF],")",sep="")
 paste(c(continous,factor),collapse="+")
 
 expr<-paste("model.matrix(~",paste(c(continous,factor),collapse=" + "), " + the.offset, data=dat)",sep="")
-Xmatrix<-eval(parse(text=expr))
+Xmatrix<-eval(expression(parse(text=expr)))
 
+
+Xmatrix <- model.matrix(~ expression(parse(text=paste(c(continous,factor),collapse="+"))) + the.offset, data=dat)
 head(Xmatrix)
 ```
 

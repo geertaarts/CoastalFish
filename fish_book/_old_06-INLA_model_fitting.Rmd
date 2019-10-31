@@ -4,7 +4,7 @@
 
 For the moment a model is fitted to data from the last 5 years up to 2017 (i.e. 2013-2017). These data are subsequently divided into a model data set and a validation data set. 
 
-```{r, eval=FALSE, echo=T}
+```{r, eval=T, echo=T}
 dat$the.offset<-dat$the.offet
 the.rows<-which(dat$year>=2013 & dat$year<=2017)
 dat.s<-dat[the.rows,]
@@ -19,6 +19,8 @@ fit_ind <- sample(seq_len(nrow(dat.s)), size = n_fit_size)
 A1 <- inla.spde.make.A(mesh = mesh1c, loc=Loc.s[fit_ind,])
 
 A2 <- inla.spde.make.A(mesh = mesh1c, loc=Loc.s[-fit_ind,])
+
+
 
 N <- n_fit_size
 Stack1 <- inla.stack(
@@ -44,26 +46,9 @@ stk.full <- inla.stack(Stack1,Stack2)
 
 ```
 
-
-```{r, eval=TRUE, echo=T}
-A <- inla.spde.make.A(mesh = mesh1c, loc=Loc)
-
-N <- nrow(dat)
-stk.full <- inla.stack(
-  tag  = "Fit",
-  data = list(y = dat$count,offset.arg=dat$the.offset),    
-  A    = list(1,1, A),         
-  effects = list( 
-    Intercept=rep(1,N),
-    X=X, #Covariates
-    w=w.st))                  #Spatial field
-
-
-```
-
 p.res <- inla(formula, data=inla.stack.data(stk.full), ## full stack
-              control.predictor=list(compute=TRUE, ## compute the predictor
-                                     A=inla.stack.A(stk.full))) ## using full st
+control.predictor=list(compute=TRUE, ## compute the predictor
+A=inla.stack.A(stk.full))) ## using full st
 
 The model formula used in the inla model is generated from the names of the model matrix, combined with the intercept term and the spatial correlation model ("f(w, model=spde)").
 
@@ -72,13 +57,13 @@ Subsequently, two inla models are run, one assuming that the data are Poisson di
 
 # What to do is calculate how the deviance information criteria is estimated. 
 How are the Devicance Information Criteria (DIC) and The Watanabe-Akaike information criterion (WAIC) computed?
-  The DIC criteria depends on the deviance, -2*log.likelihood, and we need to compute the posterior expectation of it, and evaluate it at the posterior expectation.  The calculations are straight forward, but instead of evaluating the deviance at the posterior mean of all parameters, we evaluate the deviance at the posterior mean of the latent field (x), and the posterior mode of the hyperparameters (theta). The reason is that the posterior marginals for the hyperparameters, like the precision, say, can be highly skewed, so that the posterior expectation is not at all a good representation of location. This 'almost' corresponds to a 'good' reparameterisation of the hyperparameters, like from precision to log(precision), as the posterior marginal for log(precision) is much much more symmetric.
+The DIC criteria depends on the deviance, -2*log.likelihood, and we need to compute the posterior expectation of it, and evaluate it at the posterior expectation.  The calculations are straight forward, but instead of evaluating the deviance at the posterior mean of all parameters, we evaluate the deviance at the posterior mean of the latent field (x), and the posterior mode of the hyperparameters (theta). The reason is that the posterior marginals for the hyperparameters, like the precision, say, can be highly skewed, so that the posterior expectation is not at all a good representation of location. This 'almost' corresponds to a 'good' reparameterisation of the hyperparameters, like from precision to log(precision), as the posterior marginal for log(precision) is much much more symmetric.
 
 The WAIC criterion is defined and discussed in this tech-report and we follow their recomandation to use p.eff as in their equation (11).  
 
 In order to compute this criteria, use 
 
-r=inla(..., control.compute = list(dic = TRUE, waic = TRUE))
+    r=inla(..., control.compute = list(dic = TRUE, waic = TRUE))
 
 and then the results is available as r$dic and r$waic
 
@@ -87,82 +72,25 @@ See tech report below on cross validation/model selection
 https://78462f86-a-ea572c08-s-sites.googlegroups.com/a/r-inla.org/www/faq/waic_understand3.pdf?attachauth=ANoY7cr0AIYpqdu5EQkIH2KkEpzyrQyDWwkC2q2XiLY7FKHlF3Zds4UMGZyLiAFr8KRZQAzkdnuDKc_5krPJAsEDHfb-KQKXa4LM_Bt7kRdeVIYrYlsH_CJyX113l6O-tHuDORgInOrO41h7IVcmgq3ke7zPLj2yPFkQeQWbIGZVhfCEbTsQFPfZEJ_Pna8XHKOI4LH8G7Gi7Xt1a6skT1bYWJKqCj2zMw%3D%3D&attredirects=0
 
 
+
 ```{r, eval=T, results='hide', echo=T, message=FALSE, warning=FALSE}
-
-var.names=c("day_of_year","Gar_8_9","Pkor_8_9","Bkor_8_9","slib","zand",
-"dz10","dz60","tpi_3","tpi_9","tpi_15","wind_force","factor_year")
-  
-store.table<-data.frame(var=var.names,cpo=NA)
-
-for(i in (1:nrow(store.table))){
-
-var.name<-store.table$var[i]
-col.names<-names(X)[grep(var.name,names(X))]
-fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(col.names," f(w, model = spde)","offset(the.offset)"),collapse =" + ")))
+#fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"],"offset(the.offset)"," f(w, model = spde)"),collapse =" + ")))
+#fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"][1:5],"offset(the.offset2)"," f(w, model = spde)"),collapse =" + ")))
+fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"][1:5]," f(w, model = spde)"),collapse =" + ")))
 INLA:::inla.dynload.workaround() 
 
 I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(stk.full),
-             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE, cpo=TRUE),offset=offset.arg,
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),offset=offset.arg,
              control.predictor = list(A = inla.stack.A(stk.full)))
-store.table$cpo[i]<-sum(log(I1nb$cpo$cpo),na.rm=TRUE)
-#print(store.table[i,])
-}
-
-```
-
-```{r, eval=T, results='hide', echo=T, message=FALSE, warning=FALSE}
-var="slib"
-var.names<-names(X)[grep(var.name,names(X))]
-
-pred<-as.matrix(X[,var.names])%*%array(I1nb$summary.fixed[var.names,"mean"])
-plot(X[,var.names[1]],pred)
-
-set.seed(1234)
-NSim <- 1000
-Sim <- inla.posterior.sample(n = NSim, result = I1nb)
-wrownum <- grep(var,rownames(Sim[[1]]$latent))
-wmat <- sapply(Sim, function(x) {x$latent[wrownum]})
-dim(wmat)
-
-
-pred2<-as.matrix(X[,var.names])%*%wmat
-lower<-c(apply(pred2,1,function(x){quantile(x,0.05)}))
-upper<-c(apply(pred2,1,function(x){quantile(x,0.95)}))
-pred.dat<-data.frame(x=X[,var.names[1]],mean=pred,lower=lower,upper=upper)
-pred.dat<-pred.dat[order(pred.dat$x),]
-plot(pred.dat$x,pred.dat$mean,type="line")
-rug(pred.dat$x)
-lines(pred.dat$x,pred.dat$lower,lty=3)
-lines(pred.dat$x,pred.dat$upper,lty=3)
-
-```
- 
-
-
-
-Sim[[1]]$latent[var.names,]
-
-rnames <- rownames(Sim[[1]]$latent)
-rtypes <- unique(unlist(lapply(strsplit(rnames,":"),function(x){x[1]})))
-rtypes
-
-rtypes[1]
-wrownum <- grep(paste0("^",rtypes[1]),rownames(Sim[[1]]$latent))
-wmat <- sapply(Sim, function(x) {x$latent[wrownum]})
-dim(wmat)
-
-
-
-```
 
 which(I1nb$summary.fitted.values$mean[1:nrow(dat.s)]>1e+10)
 plot(dat.s$counts/exp(dat.s$the.offset),I1nb$summary.fitted.values$mean[1:nrow(dat.s)],ylim=c(0,100))
 
 
-sum(I1nb$dic$local.dic)
+ sum(I1nb$dic$local.dic)
 sum(I1nb$dic$local.dic[fit_ind])
 sum(I1nb$dic$local.dic[-fit_ind])
-I1nb$dic$dic
+ I1nb$dic$dic
 
 pred.ind <- inla.stack.index(stk.full, tag = "pred")$data
 fit.ind <- inla.stack.index(stk.full, tag = "Fit")$data
@@ -195,9 +123,9 @@ abline(v=dat.s$count[-fit_ind][1])
 fsp.2 <- parse(text=c("y ~ -1 + Intercept + ",paste(c(names(X)[!names(X)=="the.offset"][1:5]," f(w, model = spde)"),collapse =" + ")))
 
 I1nb.2 <- inla(eval(fsp.2), family = "nbinomial", data=inla.stack.data(stk.full),
-               E=inla.stack.data(stk.full)$e,
-               control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),
-               control.predictor = list(A = inla.stack.A(stk.full)))
+             E=inla.stack.data(stk.full)$e,
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE),
+             control.predictor = list(A = inla.stack.A(stk.full)))
 
 
 I1p <- inla(eval(fsp), family = "poisson", data=inla.stack.data(Stack1),
@@ -341,8 +269,8 @@ grid.arrange(p1,p2, ncol=2)
 ```
 
 Next steps to take:
-  
-  - Test for inclusion of offset, use simulations with latent field, and use negative binomial and Poisson. See also http://www.r-inla.org/models/tools
+
+- Test for inclusion of offset, use simulations with latent field, and use negative binomial and Poisson. See also http://www.r-inla.org/models/tools
 
 - Include smooth functions of covariates. Options are polynomials (poly function) or function SmoothCon (mgcv package?)
 
@@ -359,9 +287,9 @@ Next steps to take:
 - Include fishing effort maps
 
 Open questions:
-  
-  
-  - Should we include sediment data from inner-Delta and Wadden Sea? Perhaps use subtidal SIBES? Not for now. In future analysis, use perhaps use SIBES data
+
+
+- Should we include sediment data from inner-Delta and Wadden Sea? Perhaps use subtidal SIBES? Not for now. In future analysis, use perhaps use SIBES data
 
 - what are the other covariates to include? I.e. temperature, salinity, current velocity? Yes, but wait for ARCADIS data if the come available.
 
