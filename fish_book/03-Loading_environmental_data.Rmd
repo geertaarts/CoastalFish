@@ -5,7 +5,7 @@
 Load land data
 
 ```{r landread, echo=TRUE}
-land<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/WGS84/"),layer="WGS84geoKust500")
+land<-rgdal::readOGR(dsn=file.path(PMR.data.path,"Environmental_variables/shapefiles/WGS84/"),layer="WGS84geoKust500")
 projection(land)<-CRS("+proj=longlat +datum=WGS84")
 land.utm<-land
 land.utm <- spTransform(land,CRS(common.projection))
@@ -14,10 +14,10 @@ land.utm <- spTransform(land,CRS(common.projection))
 Load Different regions
 
 ```{r region_read, echo=TRUE, dpi=300, fig.width=8, fig.height=8}
-ICES<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/ICES_gebieden_V7_WGS84/"),layer="ICES_gebieden_V7_WGS84")
+ICES<-rgdal::readOGR(dsn=file.path(PMR.data.path,"Environmental_variables/shapefiles/ICES_gebieden_V7_WGS84/"),layer="ICES_gebieden_V7_WGS84")
 ICES.utm<-ICES
 ICES.utm <- spTransform(ICES,common.projection)
-load(file=file.path(fish.path,"Environmental_variables/shapefiles/SHAPES.RDATA"))
+load(file=file.path(PMR.data.path,"Environmental_variables/shapefiles/SHAPES.RDATA"))
 
 ICES.utm.buffer           <- gBuffer(ICES.utm, F, width = 10000) # Sander used 20000
 
@@ -30,9 +30,9 @@ VD  <- spTransform(VD, common.projection)
 proj4string(VD.trans3)<-"+proj=longlat +ellps=WGS84"
 VD.trans3  <- spTransform(VD.trans3, common.projection)
 
-load(file=file.path(fish.path,"Environmental_variables/shapefiles/eurPols.Rdata"))
+load(file=file.path(PMR.data.path,"Environmental_variables/shapefiles/eurPols.Rdata"))
 
-BBVD<-rgdal::readOGR(dsn=file.path(fish.path,"Environmental_variables/shapefiles/Bodembeschermingsgebied Voordelta/"),layer="DNZ_bodembeschermingsgebied")
+BBVD<-rgdal::readOGR(dsn=file.path(PMR.data.path,"Environmental_variables/shapefiles/Bodembeschermingsgebied Voordelta/"),layer="DNZ_bodembeschermingsgebied")
 projection(BBVD)
 BBVD  <- spTransform(BBVD, common.projection)
 
@@ -258,9 +258,9 @@ Below the model data is linked to the explanatory variables.
 For some data points the values for the environmental variables are missing. For "depth" we can simply use "water_depth" as measured during the survey. To check whether this is correct, we make a plot between these two.
 
 ```{r water_depth_vs_depth, echo=TRUE, cache=TRUE, eval=T, dpi=300, fig.width=4, fig.height=4}
-dat$water_depth[dat$water_depth>100]<-NA
-plot(-dat$water_depth,dat$depth,pch=20,col=rgb(0,0,0,0.5),cex=0.3)  
-dat$water_depth[is.na(dat$water_depth)]<--dat$depth[is.na(dat$water_depth)]
+#dat$water_depth[dat$water_depth>100]<-NA
+#plot(-dat$water_depth,dat$depth,pch=20,col=rgb(0,0,0,0.5),cex=0.3)  
+#dat$water_depth[is.na(dat$water_depth)]<--dat$depth[is.na(dat$water_depth)]
 ```
 For sediment, data is missing for the Wadden Sea and some part of the Delta area. To still allow the data to be used in the model, we create a new variable which indicates whether the sampling locations is located within the missing-data area, and we set the values for the sediment variables to 0. 
 
@@ -276,8 +276,7 @@ For sediment, data is missing for the Wadden Sea and some part of the Delta area
 For the topographic position index it is set to tpi values of finer spatial scales when missing. E.g. When there is no data for tpi 15cells, we will use tpi of 9 cells. For the finest scale (i.e. tpi 3cells) we set it to the mean tpi value. This could be improved
  
 ```{r missing_2, echo=TRUE, eval=T}
-      dat$missing<-0
-       dat$tpi_3[is.na(dat$tpi_3)]<-mean(dat$tpi_3,na.rm=TRUE)
+      dat$tpi_3[is.na(dat$tpi_3)]<-mean(dat$tpi_3,na.rm=TRUE)
       dat$tpi_9[is.na(dat$tpi_9)] <-dat$tpi_3[is.na(dat$tpi_9)]
       dat$tpi_15[is.na(dat$tpi_15)] <-dat$tpi_9[is.na(dat$tpi_15)]
       summary(dat)
@@ -332,7 +331,7 @@ http://geog.uoregon.edu/bartlein/courses/geog490/week04-netCDF.html#reading-a-ne
 # The extraction is only ran for all years of the trawl data with environmental data is not existing
   TF<-is.element("dfs4pmr_trllst_ENV.csv", dir(file.path(PMR.data.path,"DFS")))  
   if (TF==TRUE) the.years<-2005  
-  if (TF==FALSE) the.years<-2005:2017 # missing data 2018  
+  if (TF==FALSE) the.years<-c(2005:2017)[is.element(c(2005:2017),unique(dat$year))] # missing data 2018  
 
 # Add columns to dat
   the.rows<-which(abiotiek$use0==1)
@@ -459,7 +458,7 @@ for (the.year in the.years)
        #if (length(dim(tmp_slice))>2) tmp_slice<-means.along(tmp_slice,3)
       
      # Make plot (only once) 
-       if (the.year==2005 & i==1) {
+       if (the.year==the.years[1] & i==1) {
           kleur<-c(as.numeric(tmp_slice))[No.NAs]
           kleur<-rainbow(120)[round(100*(kleur-min(kleur,na.rm=TRUE))/(diff(range(kleur,na.rm=TRUE))))+1]
           coordinates(xy)<-~lon + lat
@@ -486,6 +485,10 @@ Finally the table is saved
 
 ```{r write_trawl_list, echo=TRUE, eval=T}
 
-if (length(the.years)>1)  write.csv(dat,file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV_xy.csv"))   
+dat.mod<-dat[dat$id!="2017_predict",]
+dat.pred<-dat[dat$id=="2017_predict",]
+
+if (length(the.years)>1)  write.csv(dat.mod,file.path(PMR.data.path,paste("DFS/dfs4pmr_trllst_ENV_",Sys.Date(),".csv",sep="")))   
+if (length(the.years)>1)  write.csv(dat.pred,file.path(PMR.data.path,paste("DFS/dfs4pmr_xy_",Sys.Date(),".csv",sep="")))
 
 ```

@@ -1,13 +1,19 @@
 # Link trawl data (with environmental covariates) with catch data
 
-
 ### Load trawl data
+
+
+```{r, echo=TRUE}
+if (Sys.info()["nodename"]=="L0151542") {path<-"c:/github/CoastalFish/fish_book/data";
+env.path<-"C:/Users/aarts012/Dropbox/Seal_database/environmental";
+PMR.data.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/"}
+```
+
 
 ```{r trawl_data, echo=TRUE, eval=T}
 
-trawl<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV.csv"))   
-trawl$water_depth[is.na(trawl$water_depth)]<--trawl$depth[is.na(trawl$water_depth)]
-
+trawl<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst_ENV_2019-11-01.csv"))  
+trawl$sampleID<-trawl$id
 
 ```
 
@@ -23,11 +29,9 @@ Define the species
 
 ```{r define species, echo=TRUE, eval=T}
 the.species<-"Pleuronectes platessa"
-the.age<-1
+#the.species<-"Platichthys flesus"
+the.age<-0
 ```
-
-Load Length-Age key
-
 
 Select only the valid trawls
 
@@ -40,12 +44,7 @@ n1-nrow(trawl)
 
 Create sample_id for both the trawl data and the catch data.
 
-
 ```{r sampleID, echo=TRUE, eval=T}
-# Sampel id for trawl data
-  trawl$sampleID <- paste(trawl$year, trawl$sample, sep="-")  ## different years share the same "sample" code
-  dim(trawl)
-  length(unique(trawl$sampleID))
 
 # Sample id for catch data
   catch$sampleID <- paste(catch$year, catch$sample, sep="-")  ## different years share the same "sample" code
@@ -121,7 +120,7 @@ trawl$the.offset<-as.numeric(tapply.offset[match(trawl$sampleID,names(tapply.off
 trawl$NatA<-as.numeric(tapply.na[match(trawl$sampleID,names(tapply.na))])
 
 trawl$the.offset[trawl$the.offset=="Inf" | is.na(trawl$the.offset)]<-1
-trawl$the.offet<-log(trawl$the.offset)
+trawl$the.offset<-log(trawl$the.offset)
 trawl$counts[is.na(trawl$counts)]<-0
 
 
@@ -130,12 +129,15 @@ trawl$counts[is.na(trawl$counts)]<-0
 Finally we remove data from Denmark and Germany
 
 ```{r, eval=T, echo=TRUE}
-trawl<-trawl[is.element(trawl$pmr_area_code,c("WaddenkustDE","WaddenkustDK"))==FALSE,]
+trawl<-trawl[trawl$lon<6,]
+#trawl<-trawl[is.element(trawl$pmr_area_code,c("WaddenkustDE","WaddenkustDK"))==FALSE,]
 ```
 
 Plot the counts
 
 ```{r, eval=T, echo=TRUE, dpi=600, fig.width=8, fig.height=8}
+land<-rgdal::readOGR(dsn=file.path(PMR.data.path,"Environmental_variables/shapefiles/WGS84/"),layer="WGS84geoKust500")
+projection(land)<-CRS("+proj=longlat +datum=WGS84")
 trawl.s<-trawl[trawl$year==2018,]
 plot(trawl.s$lon,trawl.s$lat, 
      cex=(0.2+log(trawl.s$NatA+1)/3), 

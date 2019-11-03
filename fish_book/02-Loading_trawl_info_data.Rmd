@@ -36,18 +36,47 @@ library(RANN); library(plyr)
 Next we load the trawl data and standardize it in a way that it can be used by a more the standardized R INLA protocol.
 
 ```{r trawlload, echo=TRUE}
-dat<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst.csv"))
+dat<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_trllst2.csv"))
 names(dat)<-tolower(names(dat))
 ```
+
+In the table there should be a code with a unique id for each haul. So we check whether there are any dupplications
+
+```{r, echo=TRUE}
+dat$id <- paste(dat$year, dat$sample, sep="-")  ## different years share the same "sample" code
+sum(duplicated(dat$id))
+```
+
 
 A column for the date and time is created based on separate columns
 
 ```{r time_process_trawl, echo=TRUE}
-dat$time<-sprintf("%04d", dat$time)
-dat$date_time<-paste(dat$year,"-", dat$month,"-",dat$day," ", dat$time, sep="")
-dat$ddate<-as.POSIXct(strptime(dat$date_time,format="%Y-%m-%d %H%M",tz="UTC")) 
-tail(dat[,c("date_time","ddate")])
-dat$day_of_year<-as.numeric(difftime(dat$ddate,as.POSIXct(strptime(paste(dat$year,"-01-01 0000", sep=""),format="%Y-%m-%d %H%M",tz="UTC"),units="days")))
+# Get date and time
+  dat$time<-sprintf("%04d", dat$time)
+  dat$date_time<-paste(dat$year,"-", dat$month,"-",dat$day," ", dat$time, sep="")
+  dat$ddate<-as.POSIXct(strptime(dat$date_time,format="%Y-%m-%d %H%M",tz="UTC")) 
+  tail(dat[,c("date_time","ddate")])
+
+# Get day of year
+  dat$day_of_year<-as.numeric(difftime(dat$ddate,as.POSIXct(strptime(paste(dat$year,"-01-01 0000", sep=""),format="%Y-%m-%d %H%M",tz="UTC"),units="days")))
+
+# Rename latitude and longitude
+  dat$lon<-dat$longitude_s
+  dat$lat<-dat$latitude_s
+
+# Only select columns with data  
+  nrow(dat)
+  dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
+  nrow(dat)
+  
+# Only use data from 2014 until 2018
+  dat<-dat[dat$year>=2005 & dat$year<=2018,]
+```
+
+We now remove all unnecessary columns 
+
+```{r, echo=TRUE}
+dat<-dat[,c("id","ddate","year","day_of_year","lon","lat","pmr_area_code","water_depth","wind_direction","wind_force","temperature_s","valid","duration","bottom_track","tor_code","modelledtidalphase")]
 ```
 
 All necessary columns are given a standard name, and utm coordinates are calculated. All rows with no lat or lon coordinates are removed. 
@@ -58,13 +87,6 @@ All necessary columns are given a standard name, and utm coordinates are calcula
   common.projection<-"+proj=utm +zone=31 +ellps=WGS84 +datum=WGS84 +units=m +no_defs +towgs84=0,0,0"
   # Same as +init=epsg:32631
 
-# Change names
-  names(dat)[names(dat) == 'latitude_s'] <- 'lat'
-  names(dat)[names(dat) == 'longitude_s'] <- 'lon'
-  
-# Only select columns with data  
-  dat<-dat[is.na(dat$lat)==FALSE & is.na(dat$lon)==FALSE,]
-
 # Get utm coordinates  
   xy<-project(cbind(dat$lon,dat$lat), common.projection)
   dat$x_utm<-xy[,1]
@@ -74,22 +96,24 @@ All necessary columns are given a standard name, and utm coordinates are calcula
   str(dat)
 ``` 
 
-```{r create regular grid, echo=TRUE}
+
+
+```{r create regular grid, echo=TRUE, dpi=300, fig.width=6, fig.height=6}
 
 # Create buffer around trawl locations
   coordinates(dat)<-~x_utm + y_utm
   dat.buffer<- gBuffer(dat, F, width = 10000) 
-  plot(dat.buffer)
+  #plot(dat.buffer)
 
 # Create regular grid  
-  xy<-expand.grid(x_utm=seq(from=min(dat$x_utm),to=max(dat$x_utm),by=1000),
-                  y_utm=seq(from=min(dat$y_utm),to=max(dat$y_utm),by=1000))
+  xy<-expand.grid(x_utm=seq(from=min(dat$x_utm),to=max(dat$x_utm),by=2000),
+                  y_utm=seq(from=min(dat$y_utm),to=max(dat$y_utm),by=2000))
   coordinates(xy)<-~x_utm + y_utm
   
 # Only use regular grid points within buffer    
   xy$within<-over(xy, dat.buffer , fn = NULL) 
   xy<-xy[is.na(xy$within)==FALSE,]
-  plot(xy,add=TRUE,col="grey")
+  #plot(xy,add=TRUE,col="grey")
 
 # Get latlon
   latlon<-xy
@@ -100,8 +124,11 @@ All necessary columns are given a standard name, and utm coordinates are calcula
 # Combine with xy
   xy<-cbind(as.data.frame(xy),latlon)
   
-# Get year 2018
-  xy$year<-2018
+# Get id, ddate, year and day_of_year
+  xy$year<-2017
+  xy$ddate<-median(dat$ddate[dat$year==2017])
+  xy$day_of_year<-median(dat$day_of_year[dat$year==2017])
+  xy$id<-"2017_predict"
   
 # Combine regular grid with trawl data  
   dat<-rbind.fill(as.data.frame(dat),xy)

@@ -4,40 +4,39 @@
 
 For the moment a model is fitted to data from the last 5 years up to 2017 (i.e. 2013-2017). These data are subsequently divided into a model data set and a validation data set. 
 
-```{r, eval=FALSE, echo=T}
-dat$the.offset<-dat$the.offet
-the.rows<-which(dat$year>=2013 & dat$year<=2017)
-dat.s<-dat[the.rows,]
-Loc.s<-Loc[the.rows,]
-X.s<-X[the.rows,]
 
+if (length(the.years)>1)  write.csv(dat.mod,file.path(PMR.data.path,paste("DFS/dfs4pmr_trllst_ENV_",Sys.Date(),".csv",sep="")))   
+if (length(the.years)>1)  write.csv(dat.pred,file.path(PMR.data.path,paste("DFS/dfs4pmr_xy_",Sys.Date(),".csv",sep="")))
+
+```{r, eval=TRUE, echo=T}
+
+Loc <- cbind(dat$x_utm_km, dat$y_utm_km) #km
 set.seed(2)
-n_fit_size <- floor(0.90 * nrow(dat.s))
 
-fit_ind <- sample(seq_len(nrow(dat.s)), size = n_fit_size)
+fit_ind <- which(dat$sampleID!="2017_predict")
 
-A1 <- inla.spde.make.A(mesh = mesh1c, loc=Loc.s[fit_ind,])
+A1 <- inla.spde.make.A(mesh = mesh1c, loc=Loc[fit_ind,])
 
-A2 <- inla.spde.make.A(mesh = mesh1c, loc=Loc.s[-fit_ind,])
+A2 <- inla.spde.make.A(mesh = mesh1c, loc=Loc[-fit_ind,])
 
-N <- n_fit_size
+N <- length(fit_ind)
 Stack1 <- inla.stack(
   tag  = "Fit",
-  data = list(y = dat.s$count[fit_ind],offset.arg=dat.s$the.offset[fit_ind]),    
+  data = list(y = dat$count[fit_ind],offset.arg=dat$the.offset[fit_ind]),    
   A    = list(1,1, A1),         
   effects = list( 
     Intercept=rep(1,N),
-    X=X.s[fit_ind,], #Covariates
+    X=X[fit_ind,], #Covariates
     w=w.st))                  #Spatial field
 
-N <- nrow(dat.s)-n_fit_size
+N <- nrow(dat)-length(fit_ind)
 Stack2 <- inla.stack(
   tag  = "pred",
-  data = list(y = NA,offset.arg=dat.s$the.offset[-fit_ind]),    
+  data = list(y = NA,offset.arg=dat$the.offset[-fit_ind]),    
   A    = list(1,1, A2),         
   effects = list( 
     Intercept=rep(1,N),
-    X=X.s[-fit_ind,], #Covariates
+    X=X[-fit_ind,], #Covariates
     w=w.st))                  #Spatial field
 
 stk.full <- inla.stack(Stack1,Stack2)
@@ -45,7 +44,7 @@ stk.full <- inla.stack(Stack1,Stack2)
 ```
 
 
-```{r, eval=TRUE, echo=T}
+```{r, eval=FALSE, echo=T}
 A <- inla.spde.make.A(mesh = mesh1c, loc=Loc)
 
 N <- nrow(dat)
@@ -57,8 +56,6 @@ stk.full <- inla.stack(
     Intercept=rep(1,N),
     X=X, #Covariates
     w=w.st))                  #Spatial field
-
-
 ```
 
 p.res <- inla(formula, data=inla.stack.data(stk.full), ## full stack
@@ -92,35 +89,81 @@ https://78462f86-a-ea572c08-s-sites.googlegroups.com/a/r-inla.org/www/faq/waic_u
 var.names=c("day_of_year","Gar_8_9","Pkor_8_9","Bkor_8_9","slib","zand",
 "dz10","dz60","tpi_3","tpi_9","tpi_15","wind_force","factor_year")
   
-store.table<-data.frame(var=var.names,cpo=NA)
+var.names<-Expl.Var$X
+var.remaining<-var.names
+var.in.model<-c()
 
-for(i in (1:nrow(store.table))){
+store.table<-data.frame(var=var.names,cpo.1=NA,cpo.2=NA,cpo.3=NA, cpo.4=NA,cpo.5=NA,cpo.6=NA,cpo.7=NA)
+store.table$var<-as.character(store.table$var)
 
-var.name<-store.table$var[i]
-col.names<-names(X)[grep(var.name,names(X))]
+store.table.dic<-store.table
+
+for (j in 1:7){
+  print(j)
+for (var.name in var.remaining){
+  print(var.name)
+
+model.vars<-c(var.in.model,var.name)
+if (is.element(var.name,c("zand","gravel","slib","dz10","dz60"))) model.vars<-c(model.vars,"missing")
+model.vars<-model.vars[duplicated(model.vars)==FALSE]
+
+col.names<-names(X)[grep(paste(c(model.vars),collapse="|"),names(X))]
 fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(col.names," f(w, model = spde)","offset(the.offset)"),collapse =" + ")))
 INLA:::inla.dynload.workaround() 
 
-I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(stk.full),
-             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE, cpo=TRUE),offset=offset.arg,
-             control.predictor = list(A = inla.stack.A(stk.full)))
-store.table$cpo[i]<-sum(log(I1nb$cpo$cpo),na.rm=TRUE)
+I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(Stack1),
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE, cpo=TRUE),#offset=offset.arg,
+             control.predictor = list(A = inla.stack.A(Stack1)))
+
+row.nr<-which(var.name==store.table$var)
+sum.cpo<-sum(log(I1nb$cpo$cpo),na.rm=TRUE)
+print(sum.cpo)
+print(I1nb$dic$dic)
+
+store.table[row.nr,paste("cpo",j,sep=".")]<-sum.cpo
+store.table.dic[row.nr,paste("cpo",j,sep=".")]<-I1nb$dic$dic
+
 #print(store.table[i,])
 }
+#best.var<-store.table$var[which.max(store.table[,paste("cpo",j,sep=".")])]
+best.var<-store.table.dic$var[which.min(store.table.dic[,paste("cpo",j,sep=".")])]
+var.remaining<-var.remaining[-which(var.remaining==best.var)]
+var.in.model<-c(var.in.model,best.var)
+
+}
+```
+
+```{r, eval=F, results='hide', echo=T, message=FALSE, warning=FALSE}
+#plot(0,0,xlim=range(c(store.table[]))
+#print(store.table[i,])
+
 
 ```
 
+
 ```{r, eval=T, results='hide', echo=T, message=FALSE, warning=FALSE}
-var="slib"
-var.names<-names(X)[grep(var.name,names(X))]
+model.vars=c("wind_force","year","day_of_year","Bkor_8_9","tauw_xxxx_veld.nc_7d")
+model.vars=var.in.model
+var.names<-col.names<-names(X)[grep(paste(c(model.vars),collapse="|"),names(X))]
+fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(col.names," f(w, model = spde)","offset(the.offset)"),collapse =" + ")))
+
+I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(Stack1),
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE, cpo=TRUE),#offset=offset.arg,
+             control.predictor = list(A = inla.stack.A(Stack1)))
+
+model.vars=c("sal_layer10_xxxx.nc_7d")
+var.names<-col.names<-names(X)[grep(paste(c(model.vars),collapse="|"),names(X))]
 
 pred<-as.matrix(X[,var.names])%*%array(I1nb$summary.fixed[var.names,"mean"])
-plot(X[,var.names[1]],pred)
+#plot(X[,var.names[1]],pred)
+plot(dat[,model.vars],pred)
 
 set.seed(1234)
 NSim <- 1000
-Sim <- inla.posterior.sample(n = NSim, result = I1nb)
-wrownum <- grep(var,rownames(Sim[[1]]$latent))
+Sim <- inla.posterior.sample(n = NSim, result = I1nb)[1]
+
+
+wrownum <- grep(paste(c(model.vars),collapse="|"),rownames(Sim[[1]]$latent))
 wmat <- sapply(Sim, function(x) {x$latent[wrownum]})
 dim(wmat)
 
@@ -128,7 +171,7 @@ dim(wmat)
 pred2<-as.matrix(X[,var.names])%*%wmat
 lower<-c(apply(pred2,1,function(x){quantile(x,0.05)}))
 upper<-c(apply(pred2,1,function(x){quantile(x,0.95)}))
-pred.dat<-data.frame(x=X[,var.names[1]],mean=pred,lower=lower,upper=upper)
+pred.dat<-data.frame(x=dat[,model.vars],mean=pred,lower=lower,upper=upper)
 pred.dat<-pred.dat[order(pred.dat$x),]
 plot(pred.dat$x,pred.dat$mean,type="line")
 rug(pred.dat$x)
@@ -137,6 +180,47 @@ lines(pred.dat$x,pred.dat$upper,lty=3)
 
 ```
  
+Do spatial prediction
+
+
+```{r, eval=FALSE, echo=T}
+
+
+model.vars=c("wind_force","year","day_of_year","Bkor_8_9","tauw_xxxx_veld.nc_7d")
+model.vars=var.in.model
+var.names<-col.names<-names(X)[grep(paste(c(model.vars),collapse="|"),names(X))]
+fsp <- parse(text=c("y ~ -1 + Intercept + ",paste(c(col.names," f(w, model = spde)","offset(the.offset)"),collapse =" + ")))
+
+I1nb <- inla(eval(fsp), family = "nbinomial", data=inla.stack.data(stk.full),
+             control.compute = list(dic = TRUE, waic = TRUE, config=TRUE, cpo=TRUE),#offset=offset.arg,
+             control.predictor = list(A = inla.stack.A(stk.full)))
+
+pred<-I1nb$summary.fitted.values[1:nrow(dat),][-fit_ind,]
+kleur<-pred$mean-(min(pred$mean))
+kleur<-round(100*kleur/diff(range(kleur)))+1
+plot(dat$lon[-fit_ind],dat$lat[-fit_ind],col=rev(rainbow(120))[kleur],xlab="Longitude", ylab="Lattitude", main=paste(the.species, "  N/haul Age ",the.age,sep="",lwd=3))
+points(trawl.s$lon,trawl.s$lat, 
+     cex=(0.2+log(trawl.s$NatA+1)/3), 
+     col=c('black'),
+     xlab="Longitude", ylab="Lattitude", main=paste(the.species, "  N/haul Age ",the.age,sep=""))
+plot(land,add=TRUE,border="grey75",col="grey90")
+
+
+```
+
+
+```{r, eval=T, results='hide', echo=T, message=FALSE, warning=FALSE}
+dat.pred<-read.csv(file.path(PMR.data.path,"DFS/dfs4pmr_xy_2019-11-01.csv"))
+dat<-r
+
+# Extract prediction values: mean and confidence intervals
+
+# Convert to matrix and raster
+
+# Plot mean and SD
+
+# If possible add raw count data
+```
 
 
 

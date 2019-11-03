@@ -1,5 +1,11 @@
 #INLA DATA PREPARATION
 
+```{r, echo=TRUE}
+if (Sys.info()["nodename"]=="L0151542") {path<-"c:/github/CoastalFish/fish_book/data";
+env.path<-"C:/Users/aarts012/Dropbox/Seal_database/environmental";
+PMR.data.path<-"W:/IMARES/Data/PMR/PMR 2019/Perceel Vis/3. data/"}
+```
+
 ## Load libraries
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
 library(INLA); library(fields); 
@@ -16,26 +22,44 @@ library(RANN);
 
 ```
 
+Combine trawl data with prediction data
+
+```{r, eval=T, echo=TRUE}
+pred.dat<-read.csv(file.path(PMR.data.path,paste("DFS/dfs4pmr_xy_2019-11-01.csv",sep="")))   
+dat.trawl<-dat
+library(plyr)
+dat<-rbind.fill(dat,pred.dat)
+```
+
+
+
 ## Define the explanatory environmental variables
 
 First we only select data from 2013 tot en met 2017 (so 5 years)
 
 ```{r, eval=T, echo=TRUE}
-dat<-dat[dat$year>=2013 & dat$year<=2018,]
+#dat<-dat[dat$year>=2013 & dat$year<=2018,]
 ```
 
 Here a table is created containing all the explanatory variables, whether they are continous or factor variables, and the number of splines used for each explanatory variable.
 
 ```{r, eval=T, echo=TRUE}
-Expl.Var<-data.frame(X=c("day_of_year","year","Gar_8_9","Pkor_8_9",
+dat$factor_year<-dat$year
+dat$vel_layer10_xxxx.nc<-sqrt(dat$vvel_layer10_xxxx.nc^2 + dat$uvel_layer10_xxxx.nc^2)
+
+
+Expl.Var<-data.frame(X=c("day_of_year","factor_year","Gar_8_9","Pkor_8_9",
                          "Bkor_8_9","slib","zand","dz10",
                          "dz60","tpi_3","tpi_9","tpi_15",
-                         "depth","wind_force"),
+                         "depth","wind_force","temp_layer10_xxxx.nc_7d","sal_layer10_xxxx.nc_7d",
+                         "tauw_xxxx_veld.nc_7d","vel_layer10_xxxx.nc"),
                      type=c("continuous","factor","continuous","continuous",
+                            "continuous","continuous","continuous","continuous",
                             "continuous","continuous","continuous","continuous",
                             "continuous","continuous","continuous","continuous",
                             "continuous","continuous"),
                      nsplines=c(4,0,4,4,
+                                4,4,4,4,
                                 4,4,4,4,
                                 4,4,4,4,
                                 4,4))
@@ -50,6 +74,7 @@ First, UTM coordinates of the data set are combined into a data frame. That data
 
 ```{r, eval=T, echo=TRUE}
 Expl.Var$X<-as.character(Expl.Var$X)
+dat[dat$id=="2017_predict","wind_force"]<-4
 dat<-dat[which(complete.cases(dat[,Expl.Var$X])),]
 ```
 
@@ -57,7 +82,7 @@ dat<-dat[which(complete.cases(dat[,Expl.Var$X])),]
 ```{r, eval=T, echo=TRUE}
 dat$x_utm_km<-dat$x_utm/1000
 dat$y_utm_km<-dat$y_utm/1000
-Loc <- cbind(dat$x_utm_km, dat$y_utm_km) #km
+Loc <- cbind(dat$x_utm_km[dat$id!="2017_predict"], dat$y_utm_km[dat$id!="2017_predict"]) #km
 ```
 
 Before creating the mesh we need a boundary for it: we do not want our spatial correlations to pass landmasses (e.g. Denmark). The boundary is made using a nonconvex hull of the data points, with function inla.nonconvex.hull(). This convex hull is used as a boundary for making a 2d mesh. 
@@ -119,6 +144,7 @@ A1 <- inla.spde.make.A(mesh = mesh1c, loc=Loc)
 dim(A1)
 ```
 The first dimension of the projector matrix has the size of the number of observations (here `r dim(A1)[1]`), and the second dimension of the projector matrix is the number of nodes in the mesh (here `r dim(A1)[2]`).
+
 ```{r, eval=T, echo=TRUE}
 spde <- inla.spde2.matern(mesh1c)
 w.st <- inla.spde.make.index('w', n.spde = spde$n.spde)
@@ -138,15 +164,29 @@ Note that in code below the names in the model matrix should not contain any spe
 
 Expl.Var$X<-as.character(Expl.Var$X)
 dat<-dat[which(complete.cases(dat[,Expl.Var$X])),]
+dat$the.offset[is.na(dat$the.offset)]<-0
 
-TF<-which(Expl.Var$type=="continuous")
-continous<-paste("poly(",Expl.Var$X[TF],",",Expl.Var$nsplines[TF],")",sep="")
-TF<-which(Expl.Var$type=="factor")
-factor<-paste("factor(",Expl.Var$X[TF],")",sep="")
-paste(c(continous,factor),collapse="+")
+cont.var<-which(Expl.Var$type=="continuous")
+#continous<-paste("poly(",Expl.Var$X[cont.var],",",Expl.Var$nsplines[cont.var],")",sep="")
+library(splines)
+continuous<-c()
+X<-c()
+for (jj in cont.var){
+  
+  the.knots<-as.numeric(quantile(dat[,Expl.Var$X[jj]],c(.25,0.5,0.75)))
+  bs.X<-bs(dat[,Expl.Var$X[jj]],knots=the.knots)
+  colnames(bs.X)<-paste(Expl.Var$X[jj],1:6,sep="")
+  X<-cbind(X,bs.X)}
 
-expr<-paste("model.matrix(~",paste(c(continous,factor),collapse=" + "), " + the.offset, data=dat)",sep="")
-Xmatrix<-eval(parse(text=expr))
+fact.var<-which(Expl.Var$type=="factor")
+for (jj in fact.var){
+  
+  bs.X<-data.frame(fact=as.factor(dat[,Expl.Var$X[jj]]))
+  names(bs.X)<-paste(factor,Expl.Var$X[jj],sep="_")
+  X<-cbind(X,bs.X)}
+
+X$the.offset<-dat$the.offset
+Xmatrix<-X
 
 head(Xmatrix)
 ```
